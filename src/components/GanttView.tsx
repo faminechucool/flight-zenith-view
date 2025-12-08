@@ -181,13 +181,13 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       <div className="rounded-md border overflow-auto bg-background">
         {/* Column headers - Date and 24-hour time slots */}
         <div className="sticky top-0 z-20 bg-background border-b">
-          <div className="flex">
+          <div className="flex flex-col">
             <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-10">
               Registration
             </div>
-            <div className="flex-1 grid grid-cols-24 min-w-[1200px]">
+            <div className="flex min-w-[1200px]">
               {timeSlots.map((time) => (
-                <div key={time} className="border-r p-2 text-center text-xs font-semibold bg-muted/50">
+                <div key={time} className="flex-1 border-r p-2 text-center text-xs font-semibold bg-muted/50">
                   {time}
                 </div>
               ))}
@@ -200,59 +200,61 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
           {registrations.map((registration, rowIndex) => (
             <div
               key={registration}
-              className={`flex border-b hover:bg-muted/20 transition-colors ${
+              className={`flex flex-col border-b hover:bg-muted/20 transition-colors ${
                 draggedFlight && draggedFlight.registration !== registration ? 'bg-primary/5' : ''
               }`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, registration)}
             >
               {/* Registration label */}
-              <div className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background">
-                <div className="font-semibold text-sm">{registration}</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {flightsByRegistration[registration]?.length || 0} flights
-                </div>
-              </div>
-
-              {/* Timeline grid */}
-              <div className="flex-1 relative min-h-[70px] min-w-[1200px]">
-                {/* Background grid */}
-                <div className="absolute inset-0 grid grid-cols-24">
-                  {timeSlots.map((time, idx) => (
-                    <div key={time} className={`border-r ${idx % 6 === 0 ? 'bg-muted/10' : ''}`}></div>
-                  ))}
+              <div className="flex w-full">
+                <div className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background">
+                  <div className="font-semibold text-sm">{registration}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {flightsByRegistration[registration]?.length || 0} flights
+                  </div>
                 </div>
 
-                {/* Flight bars */}
-                <div className="absolute inset-0 p-1">
-                  {flightsByRegistration[registration]?.map((flight, idx) => {
-                    const position = getFlightPosition(flight.std, flight.sta);
-                    const topOffset = idx * 22; // Stack flights vertically
-                    
-                    return (
-                      <div
-                        key={flight.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, flight)}
-                        onDragEnd={handleDragEnd}
-                        className={`absolute h-[18px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
-                          flight.status
-                        )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
-                        style={{
-                          left: position.left,
-                          width: position.width,
-                          top: `${topOffset}px`,
-                        }}
-                        title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
-                      >
-                        <div className="flex items-center gap-1 px-1 h-full">
-                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`}></div>
-                          <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
-                          <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
+                {/* Timeline grid */}
+                <div className="flex-1 relative min-h-[70px] min-w-[1200px]">
+                  {/* Background grid */}
+                  <div className="absolute inset-0 flex">
+                    {timeSlots.map((time, idx) => (
+                      <div key={time} className={`flex-1 border-r ${idx % 6 === 0 ? 'bg-muted/10' : ''}`}></div>
+                    ))}
+                  </div>
+
+                  {/* Flight bars */}
+                  <div className="absolute inset-0 p-1">
+                    {flightsByRegistration[registration]?.map((flight, idx) => {
+                      const position = getFlightPosition(flight.std, flight.sta);
+                      const topOffset = idx * 22;
+                      
+                      return (
+                        <div
+                          key={flight.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, flight)}
+                          onDragEnd={handleDragEnd}
+                          className={`absolute h-[18px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
+                            flight.status
+                          )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
+                          style={{
+                            left: position.left,
+                            width: position.width,
+                            top: `${topOffset}px`,
+                          }}
+                          title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
+                        >
+                          <div className="flex items-center gap-1 px-1 h-full">
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`}></div>
+                            <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
+                            <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
