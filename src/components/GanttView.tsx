@@ -13,7 +13,7 @@ interface GanttViewProps {
 
 export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
-  const [selectedDay, setSelectedDay] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>("all");
   const [draggedFlight, setDraggedFlight] = useState<AircraftTableData | null>(null);
 
   const availableWeeks = useMemo(() => {
@@ -21,7 +21,17 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
     return Array.from(weeks).sort((a, b) => a - b);
   }, [aircraft]);
 
-  const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  // Get unique dates from aircraft data
+  const availableDates = useMemo(() => {
+    const dates = new Set(aircraft.map(a => a.date));
+    return Array.from(dates).sort();
+  }, [aircraft]);
+
+  // Get unique registrations
+  const registrations = useMemo(() => {
+    const regs = new Set(aircraft.map(a => a.registration));
+    return Array.from(regs).sort();
+  }, [aircraft]);
 
   const filteredAircraft = useMemo(() => {
     let filtered = aircraft;
@@ -30,27 +40,23 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       filtered = filtered.filter(a => a.weekNumber === parseInt(selectedWeek));
     }
     
-    if (selectedDay !== "all") {
-      filtered = filtered.filter(a => a.day === selectedDay);
+    if (selectedDate !== "all") {
+      filtered = filtered.filter(a => a.date === selectedDate);
     }
     
     return filtered.sort((a, b) => {
-      // Sort by day first, then by STD time
-      const dayOrder = daysOfWeek.indexOf(a.day) - daysOfWeek.indexOf(b.day);
-      if (dayOrder !== 0) return dayOrder;
+      // Sort by registration first, then by STD time
+      const regOrder = a.registration.localeCompare(b.registration);
+      if (regOrder !== 0) return regOrder;
       return a.std.localeCompare(b.std);
     });
-  }, [aircraft, selectedWeek, selectedDay]);
+  }, [aircraft, selectedWeek, selectedDate]);
 
   // Time slots for the timeline (24 hours)
   const timeSlots = Array.from({ length: 24 }, (_, i) => {
     const hour = i.toString().padStart(2, '0');
     return `${hour}:00`;
   });
-
-  const columnLetters = Array.from({ length: 24 }, (_, i) => 
-    String.fromCharCode(65 + i) // A-X for 24 hours
-  );
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -108,40 +114,31 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = async (e: React.DragEvent, targetDay: string) => {
+  const handleDrop = async (e: React.DragEvent, targetRegistration: string) => {
     e.preventDefault();
     
-    if (!draggedFlight || draggedFlight.day === targetDay) {
+    if (!draggedFlight || draggedFlight.registration === targetRegistration) {
       setDraggedFlight(null);
       return;
     }
 
-    try {
-      const result = await onUpdateFlight(draggedFlight.id, 'day', targetDay);
-      if (result.success) {
-        toast.success(`Flight ${draggedFlight.flightNo} moved to ${targetDay}`);
-      } else {
-        toast.error("Failed to move flight");
-      }
-    } catch (error) {
-      toast.error("Failed to move flight");
-    } finally {
-      setDraggedFlight(null);
-    }
+    // For now, just show a message since changing registration would require different logic
+    toast.info(`Flight ${draggedFlight.flightNo} - Registration change not supported via drag`);
+    setDraggedFlight(null);
   };
 
   const handleDragEnd = () => {
     setDraggedFlight(null);
   };
 
-  // Group flights by day for timeline view
-  const flightsByDay = useMemo(() => {
+  // Group flights by registration for timeline view
+  const flightsByRegistration = useMemo(() => {
     const grouped: { [key: string]: AircraftTableData[] } = {};
-    daysOfWeek.forEach(day => {
-      grouped[day] = filteredAircraft.filter(f => f.day === day);
+    registrations.forEach(reg => {
+      grouped[reg] = filteredAircraft.filter(f => f.registration === reg);
     });
     return grouped;
-  }, [filteredAircraft]);
+  }, [filteredAircraft, registrations]);
 
   return (
     <div className="space-y-6">
@@ -165,15 +162,15 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
             </SelectContent>
           </Select>
           
-          <Select value={selectedDay} onValueChange={setSelectedDay}>
+          <Select value={selectedDate} onValueChange={setSelectedDate}>
             <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Select day" />
+              <SelectValue placeholder="Select date" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Days</SelectItem>
-              {daysOfWeek.map((day) => (
-                <SelectItem key={day} value={day}>
-                  {day}
+              <SelectItem value="all">All Dates</SelectItem>
+              {availableDates.map((date) => (
+                <SelectItem key={date} value={date}>
+                  {date}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -182,25 +179,15 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       </div>
 
       <div className="rounded-md border overflow-auto bg-background">
-        {/* Column headers - Time slots with letters */}
+        {/* Column headers - Date and 24-hour time slots */}
         <div className="sticky top-0 z-20 bg-background border-b">
           <div className="flex">
-            <div className="w-[140px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-10">
-              Day / Time
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-10">
+              Registration
             </div>
-            <div className="flex-1 grid grid-cols-24 min-w-[1200px]">
-              {columnLetters.map((letter, idx) => (
-                <div key={letter} className="border-r p-1 text-center font-semibold text-xs bg-muted/50">
-                  {letter}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="flex">
-            <div className="w-[140px] flex-shrink-0 border-r bg-muted/30 sticky left-0 z-10"></div>
             <div className="flex-1 grid grid-cols-24 min-w-[1200px]">
               {timeSlots.map((time) => (
-                <div key={time} className="border-r p-1 text-center text-xs font-medium bg-muted/30">
+                <div key={time} className="border-r p-2 text-center text-xs font-semibold bg-muted/50">
                   {time}
                 </div>
               ))}
@@ -208,30 +195,27 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
           </div>
         </div>
 
-        {/* Timeline rows for each day */}
+        {/* Timeline rows for each registration */}
         <div className="min-h-[500px]">
-          {daysOfWeek.map((day, rowIndex) => (
+          {registrations.map((registration, rowIndex) => (
             <div
-              key={day}
+              key={registration}
               className={`flex border-b hover:bg-muted/20 transition-colors ${
-                draggedFlight && draggedFlight.day !== day ? 'bg-primary/5' : ''
+                draggedFlight && draggedFlight.registration !== registration ? 'bg-primary/5' : ''
               }`}
               onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, day)}
+              onDrop={(e) => handleDrop(e, registration)}
             >
-              {/* Day label with row number */}
-              <div className="w-[140px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-xs text-muted-foreground">#{rowIndex + 1}</span>
-                  <span className="font-medium text-sm">{day}</span>
-                </div>
+              {/* Registration label */}
+              <div className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background">
+                <div className="font-semibold text-sm">{registration}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {flightsByDay[day]?.length || 0} flights
+                  {flightsByRegistration[registration]?.length || 0} flights
                 </div>
               </div>
 
               {/* Timeline grid */}
-              <div className="flex-1 relative min-h-[80px] min-w-[1200px]">
+              <div className="flex-1 relative min-h-[70px] min-w-[1200px]">
                 {/* Background grid */}
                 <div className="absolute inset-0 grid grid-cols-24">
                   {timeSlots.map((time, idx) => (
@@ -241,9 +225,9 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
 
                 {/* Flight bars */}
                 <div className="absolute inset-0 p-1">
-                  {flightsByDay[day]?.map((flight, idx) => {
+                  {flightsByRegistration[registration]?.map((flight, idx) => {
                     const position = getFlightPosition(flight.std, flight.sta);
-                    const topOffset = idx * 24; // Stack flights vertically
+                    const topOffset = idx * 22; // Stack flights vertically
                     
                     return (
                       <div
@@ -251,7 +235,7 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, flight)}
                         onDragEnd={handleDragEnd}
-                        className={`absolute h-[20px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
+                        className={`absolute h-[18px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
                           flight.status
                         )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
                         style={{
@@ -259,13 +243,12 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                           width: position.width,
                           top: `${topOffset}px`,
                         }}
-                        title={`${flight.flightNo} - ${flight.registration} (${flight.std}-${flight.sta})`}
+                        title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                       >
-                        <div className="flex items-center gap-1 px-2 h-full">
-                          <div className={`w-2 h-2 rounded-full ${getFlightTypeColor(flight.flightType)}`}></div>
+                        <div className="flex items-center gap-1 px-1 h-full">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`}></div>
                           <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
-                          <span className="text-[9px] truncate opacity-90">{flight.registration}</span>
-                          <span className="text-[9px] ml-auto opacity-90">${flight.revenue.toLocaleString()}</span>
+                          <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
                         </div>
                       </div>
                     );
