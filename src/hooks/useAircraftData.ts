@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 import { AircraftTableData } from '@/data/mockData'
 
 export const useAircraftData = () => {
@@ -8,11 +8,6 @@ export const useAircraftData = () => {
   const [error, setError] = useState<string | null>(null)
 
   const fetchAircraft = async () => {
-    // Skip if Supabase is not configured
-    if (!isSupabaseConfigured() || !supabase) {
-      setLoading(false)
-      return
-    }
 
     try {
       setLoading(true)
@@ -36,11 +31,11 @@ export const useAircraftData = () => {
           adep: item.adep,
           sta: item.sta,
           operator: item.operator,
-          flightType: item.flight_type,
+          flightType: item.flight_type as 'charter' | 'schedule' | 'acmi',
           totalCapacity: item.total_capacity,
           capacityUsed: item.capacity_used,
           capacityAvailable: item.capacity_available,
-          status: item.status,
+          status: item.status as 'operational' | 'aog' | 'maintenance' | 'cancelled',
           clientName: item.client_name,
           contractId: item.contract_id,
           revenue: item.revenue
@@ -55,10 +50,6 @@ export const useAircraftData = () => {
   }
 
   const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'day', newValue: string, changedBy: string = 'User') => {
-    // Skip if Supabase is not configured
-    if (!isSupabaseConfigured() || !supabase) {
-      return { success: false, error: 'Database not available' }
-    }
 
     try {
       const currentAircraft = aircraft.find(a => a.id === id)
