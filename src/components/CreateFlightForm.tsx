@@ -23,7 +23,7 @@ import { CalendarIcon, Plane, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 const flightSchema = z.object({
   registration: z.string().trim().min(1, "Registration is required").max(20, "Max 20 characters"),
@@ -172,47 +172,39 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
     try {
       const flights = generateFlights(data, creationType);
       
-      if (isSupabaseConfigured() && supabase) {
-        // Insert into database
-        const dbFlights = flights.map(flight => ({
-          week_number: flight.weekNumber,
-          month_number: flight.monthNumber,
-          registration: flight.registration,
-          flight_no: flight.flightNo,
-          day: flight.day,
-          date: flight.date,
-          std: flight.std,
-          adep: flight.adep,
-          sta: flight.sta,
-          operator: flight.operator,
-          flight_type: flight.flightType,
-          total_capacity: flight.totalCapacity,
-          capacity_used: flight.capacityUsed,
-          capacity_available: flight.capacityAvailable,
-          status: flight.status,
-          client_name: flight.clientName,
-          contract_id: flight.contractId,
-          revenue: flight.revenue,
-        }));
+      // Insert into database
+      const dbFlights = flights.map(flight => ({
+        week_number: flight.weekNumber,
+        month_number: flight.monthNumber,
+        registration: flight.registration,
+        flight_no: flight.flightNo,
+        day: flight.day,
+        date: flight.date,
+        std: flight.std,
+        adep: flight.adep,
+        sta: flight.sta,
+        operator: flight.operator,
+        flight_type: flight.flightType as 'charter' | 'schedule' | 'acmi',
+        total_capacity: flight.totalCapacity,
+        capacity_used: flight.capacityUsed,
+        capacity_available: flight.capacityAvailable,
+        status: flight.status as 'operational' | 'aog' | 'maintenance' | 'cancelled',
+        client_name: flight.clientName,
+        contract_id: flight.contractId,
+        revenue: flight.revenue,
+      }));
 
-        const { error } = await supabase.from('aircraft_data').insert(dbFlights);
-        
-        if (error) throw error;
-        
-        toast({
-          title: "Success!",
-          description: `Created ${flights.length} flight(s) successfully.`,
-        });
-        
-        form.reset();
-        onFlightCreated?.();
-      } else {
-        toast({
-          title: "Database not configured",
-          description: "Unable to save flights. Please configure Lovable Cloud.",
-          variant: "destructive",
-        });
-      }
+      const { error } = await supabase.from('aircraft_data').insert(dbFlights);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Success!",
+        description: `Created ${flights.length} flight(s) successfully.`,
+      });
+      
+      form.reset();
+      onFlightCreated?.();
     } catch (error) {
       toast({
         title: "Error",
