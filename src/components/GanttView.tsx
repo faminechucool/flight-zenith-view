@@ -54,12 +54,14 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "confirmed":
+      case "operational":
         return "bg-green-500/90 border-green-600 text-white";
-      case "pending":
+      case "aog":
+        return "bg-red-500/90 border-red-600 text-white";
+      case "maintenance":
         return "bg-yellow-500/90 border-yellow-600 text-white";
       case "cancelled":
-        return "bg-red-500/90 border-red-600 text-white";
+        return "bg-gray-500/90 border-gray-600 text-white";
       default:
         return "bg-blue-500/90 border-blue-600 text-white";
     }
@@ -296,14 +298,18 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
         <div className="text-sm font-semibold">Status:</div>
         <div className="flex items-center gap-2">
           <div className="w-8 h-3 rounded bg-green-500"></div>
-          <span className="text-xs">Confirmed</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded bg-yellow-500"></div>
-          <span className="text-xs">Pending</span>
+          <span className="text-xs">Operational</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-8 h-3 rounded bg-red-500"></div>
+          <span className="text-xs">AOG</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded bg-yellow-500"></div>
+          <span className="text-xs">Maintenance</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-3 rounded bg-gray-500"></div>
           <span className="text-xs">Cancelled</span>
         </div>
       </div>
