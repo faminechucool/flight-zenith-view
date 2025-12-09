@@ -44,8 +44,8 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       filtered = filtered.filter(a => a.date === selectedDate);
     }
     
+    // Sort by registration first, then by STD time
     return filtered.sort((a, b) => {
-      // Sort by registration first, then by STD time
       const regOrder = a.registration.localeCompare(b.registration);
       if (regOrder !== 0) return regOrder;
       return a.std.localeCompare(b.std);
@@ -135,7 +135,9 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
   const flightsByRegistration = useMemo(() => {
     const grouped: { [key: string]: AircraftTableData[] } = {};
     registrations.forEach(reg => {
-      grouped[reg] = filteredAircraft.filter(f => f.registration === reg);
+      grouped[reg] = filteredAircraft
+        .filter(f => f.registration === reg)
+        .sort((x, y) => x.std.localeCompare(y.std)); // keep flights ordered by time
     });
     return grouped;
   }, [filteredAircraft, registrations]);
