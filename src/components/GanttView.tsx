@@ -22,11 +22,15 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
 
   // local copy of aircraft for optimistic UI updates
   const [localAircraft, setLocalAircraft] = useState<AircraftTableData[]>(aircraft);
-
+  const [isUpdating, setIsUpdating] = useState(false);
+  
   // sync local copy when prop changes
   useEffect(() => {
-    setLocalAircraft(aircraft);
-  }, [aircraft]);
+    // don't clobber optimistic changes while an update is in progress
+    if (!isUpdating) {
+      setLocalAircraft(aircraft);
+    }
+  }, [aircraft, isUpdating]);
 
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
@@ -168,8 +172,9 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     const newStd = formatMinutesToTime(newStartMinutes);
     const newSta = formatMinutesToTime(newStartMinutes + duration);
 
-    // optimistic update: snapshot, update UI, call API, revert on failure
+    // Save snapshot before optimistic update (and mark as updating so props won't override it)
     const prevSnapshot = localAircraft;
+    setIsUpdating(true);
     setLocalAircraft(prev =>
       prev.map(f => f.id === draggedFlight.id ? { ...f, std: newStd, sta: newSta } : f)
     );
@@ -183,6 +188,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
       toast.error('Unable to update flight time');
     } finally {
       setDraggedFlight(null);
+      setIsUpdating(false);
     }
   };
 
@@ -309,8 +315,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
               className={`flex flex-col border-b hover:bg-muted/20 transition-colors ${
                 draggedFlight && draggedFlight.registration !== registration ? 'bg-primary/5' : ''
               }`}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, registration)}
             >
               {/* Registration label */}
               <div className="flex w-full">
