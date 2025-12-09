@@ -111,6 +111,8 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
   const handleDragStart = (e: React.DragEvent, flight: AircraftTableData) => {
     setDraggedFlight(flight);
     e.dataTransfer.effectAllowed = "move";
+    // store flight id in dataTransfer so native drag works consistently
+    try { e.dataTransfer.setData("text/plain", flight.id); } catch {}
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -118,17 +120,56 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     e.dataTransfer.dropEffect = "move";
   };
 
+  const formatMinutesToTime = (minutes: number) => {
+    const m = ((minutes % 1440) + 1440) % 1440; // normalize 0..1439
+    const hh = Math.floor(m / 60).toString().padStart(2, '0');
+    const mm = Math.floor(m % 60).toString().padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const handleDrop = async (e: React.DragEvent, targetRegistration: string) => {
     e.preventDefault();
-    
-    if (!draggedFlight || draggedFlight.registration === targetRegistration) {
+
+    // Only allow time change when dropping inside same registration row
+    if (!draggedFlight) {
       setDraggedFlight(null);
       return;
     }
 
-    // For now, just show a message since changing registration would require different logic
-    toast.info(`Flight ${draggedFlight.flightNo} - Registration change not supported via drag`);
-    setDraggedFlight(null);
+    if (draggedFlight.registration !== targetRegistration) {
+      toast.info(`Drag between registrations not supported. Drop within the same registration to change time.`);
+      setDraggedFlight(null);
+      return;
+    }
+
+    // Get bounding rect of the timeline area dropped onto (the element with relative positioning)
+    const timelineEl = e.currentTarget as HTMLElement;
+    const rect = timelineEl.getBoundingClientRect();
+    const dropX = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, dropX / rect.width));
+    const newStartMinutes = Math.round(percent * 24 * 60);
+
+    // compute original duration in minutes (handle overnight)
+    const parseToMinutes = (time: string) => {
+      const [h, m] = time.split(':').map(Number);
+      return h * 60 + (m || 0);
+    };
+    const origStart = parseToMinutes(draggedFlight.std);
+    const origEnd = parseToMinutes(draggedFlight.sta);
+    const duration = (origEnd < origStart) ? (origEnd + 1440 - origStart) : (origEnd - origStart);
+
+    const newStd = formatMinutesToTime(newStartMinutes);
+    const newSta = formatMinutesToTime(newStartMinutes + duration);
+
+    // call parent update callback — adjust field/newValue as your parent expects
+    try {
+      await onUpdateFlight(draggedFlight.id, 'day', newStd); // <-- change if API expects different field
+      toast.success(`Moved ${draggedFlight.flightNo} to ${newStd} (${newSta})`);
+    } catch (err) {
+      toast.error('Unable to update flight time');
+    } finally {
+      setDraggedFlight(null);
+    }
   };
 
   const handleDragEnd = () => {
@@ -270,6 +311,8 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                 <div 
                   className="flex-1 relative min-w-[1200px]"
                   style={{ height: `${Math.max(maxLanesPerRegistration[registration] * 28 + 8, 40)}px` }}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, registration)}
                 >
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
