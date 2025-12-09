@@ -30,7 +30,7 @@ export const FilterPanel = ({ filters, onFiltersChange, onClearFilters, aircraft
   // Get unique values for filter options
   const statusOptions = ["operational", "aog", "maintenance", "cancelled"];
   const flightTypeOptions = ["charter", "schedule", "acmi"];
-  const operatorOptions = ["Romcargo", "Aerotranscargo", "One Air", "Alpha Sky"];
+  const operatorOptions = ["Romcargo", "Aerotranscargo", "One Air"];
   const clientOptions = ["Cargo Express Ltd", "International Logistics", "One Air Services", "Alpha Sky Corporation", "European Freight Co", "Premium Cargo Services", "Global Air Transport", "Regional ACMI Solutions"];
   const registrationOptions = [...new Set(aircraftData.map(aircraft => aircraft.registration))].sort();
 

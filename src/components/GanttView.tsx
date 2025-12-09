@@ -3,18 +3,22 @@ import { AircraftTableData } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Plane } from "lucide-react";
+import { Plane, Edit, ExternalLink } from "lucide-react";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
   onUpdateFlight: (id: string, field: 'day', newValue: string) => Promise<any>;
+  onNavigateToCreate?: () => void;
 }
 
-export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
+export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [draggedFlight, setDraggedFlight] = useState<AircraftTableData | null>(null);
+  const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
 
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
@@ -131,16 +135,67 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
     setDraggedFlight(null);
   };
 
-  // Group flights by registration for timeline view
+  // Group flights by registration and calculate lanes to avoid overlap
   const flightsByRegistration = useMemo(() => {
-    const grouped: { [key: string]: AircraftTableData[] } = {};
+    const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
+    
     registrations.forEach(reg => {
+<<<<<<< HEAD
       grouped[reg] = filteredAircraft
         .filter(f => f.registration === reg)
         .sort((x, y) => x.std.localeCompare(y.std)); // keep flights ordered by time
+=======
+      const flights = filteredAircraft.filter(f => f.registration === reg);
+      const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
+      
+      // Sort flights by start time
+      const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
+      
+      // Track end times for each lane
+      const laneEndTimes: number[] = [];
+      
+      sortedFlights.forEach(flight => {
+        const parseTime = (time: string) => {
+          const [hours, minutes] = time.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+        
+        const startMinutes = parseTime(flight.std);
+        const endMinutes = parseTime(flight.sta);
+        const adjustedEnd = endMinutes < startMinutes ? endMinutes + 1440 : endMinutes; // Handle overnight
+        
+        // Find the first available lane
+        let assignedLane = 0;
+        for (let i = 0; i < laneEndTimes.length; i++) {
+          if (laneEndTimes[i] <= startMinutes) {
+            assignedLane = i;
+            break;
+          }
+          assignedLane = i + 1;
+        }
+        
+        // Update lane end time
+        laneEndTimes[assignedLane] = adjustedEnd;
+        
+        flightsWithLanes.push({ flight, lane: assignedLane });
+      });
+      
+      grouped[reg] = flightsWithLanes;
+>>>>>>> 13e25fd4e2477bc4cb5812ed25de7945223119e5
     });
+    
     return grouped;
   }, [filteredAircraft, registrations]);
+
+  // Get max lanes per registration for dynamic row height
+  const maxLanesPerRegistration = useMemo(() => {
+    const maxLanes: { [key: string]: number } = {};
+    registrations.forEach(reg => {
+      const flights = flightsByRegistration[reg] || [];
+      maxLanes[reg] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
+    });
+    return maxLanes;
+  }, [flightsByRegistration, registrations]);
 
   return (
     <div className="space-y-6">
@@ -181,10 +236,10 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       </div>
 
       <div className="rounded-md border overflow-auto bg-background">
-        {/* Column headers - Date and 24-hour time slots */}
+        {/* Column headers - Registration + 24-hour time slots */}
         <div className="sticky top-0 z-20 bg-background border-b">
-          <div className="flex flex-col">
-            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-10">
+          <div className="flex">
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-30 bg-muted/50">
               Registration
             </div>
             <div className="flex min-w-[1200px]">
@@ -218,7 +273,10 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                 </div>
 
                 {/* Timeline grid */}
-                <div className="flex-1 relative min-h-[70px] min-w-[1200px]">
+                <div 
+                  className="flex-1 relative min-w-[1200px]"
+                  style={{ height: `${Math.max(maxLanesPerRegistration[registration] * 28 + 8, 40)}px` }}
+                >
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
                     {timeSlots.map((time, idx) => (
@@ -226,11 +284,10 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                     ))}
                   </div>
 
-                  {/* Flight bars */}
-                  <div className="absolute inset-0 p-1">
-                    {flightsByRegistration[registration]?.map((flight, idx) => {
+                  {/* Flight bars - multiple lanes per registration */}
+                  <div className="absolute inset-0 px-1 py-1">
+                    {flightsByRegistration[registration]?.map(({ flight, lane }) => {
                       const position = getFlightPosition(flight.std, flight.sta);
-                      const topOffset = idx * 22;
                       
                       return (
                         <div
@@ -238,13 +295,14 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                           draggable
                           onDragStart={(e) => handleDragStart(e, flight)}
                           onDragEnd={handleDragEnd}
-                          className={`absolute h-[18px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
+                          onClick={() => setSelectedFlight(flight)}
+                          className={`absolute h-[24px] rounded-md border-2 cursor-pointer transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
                             flight.status
                           )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
                           style={{
                             left: position.left,
                             width: position.width,
-                            top: `${topOffset}px`,
+                            top: `${lane * 28 + 4}px`,
                           }}
                           title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                         >
@@ -306,6 +364,47 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
           <p>No flights available for the selected filters</p>
         </div>
       )}
+
+      {/* Flight Details Dialog */}
+      <Dialog open={!!selectedFlight} onOpenChange={(open) => !open && setSelectedFlight(null)}>
+        <DialogContent className="bg-background">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plane className="w-5 h-5" />
+              Flight Details - {selectedFlight?.flightNo}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedFlight && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-semibold">Registration:</span> {selectedFlight.registration}</div>
+                <div><span className="font-semibold">Date:</span> {selectedFlight.date}</div>
+                <div><span className="font-semibold">STD:</span> {selectedFlight.std}</div>
+                <div><span className="font-semibold">STA:</span> {selectedFlight.sta}</div>
+                <div><span className="font-semibold">ADEP:</span> {selectedFlight.adep}</div>
+                <div><span className="font-semibold">Operator:</span> {selectedFlight.operator}</div>
+                <div><span className="font-semibold">Status:</span> <Badge variant="outline">{selectedFlight.status}</Badge></div>
+                <div><span className="font-semibold">Flight Type:</span> {selectedFlight.flightType}</div>
+                <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
+                <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
+              </div>
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    setSelectedFlight(null);
+                    onNavigateToCreate?.();
+                  }}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Go to Create Flight
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
