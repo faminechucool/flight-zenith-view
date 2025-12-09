@@ -358,9 +358,18 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Operator *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Romcargo" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select operator" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-background border shadow-lg z-50">
+                          <SelectItem value="Romcargo">Romcargo</SelectItem>
+                          <SelectItem value="Aerotranscargo">Aerotranscargo</SelectItem>
+                          <SelectItem value="One Air">One Air</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

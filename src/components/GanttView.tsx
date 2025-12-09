@@ -3,18 +3,22 @@ import { AircraftTableData } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Plane } from "lucide-react";
+import { Plane, Edit, ExternalLink } from "lucide-react";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
   onUpdateFlight: (id: string, field: 'day', newValue: string) => Promise<any>;
+  onNavigateToCreate?: () => void;
 }
 
-export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
+export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [draggedFlight, setDraggedFlight] = useState<AircraftTableData | null>(null);
+  const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
 
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
@@ -216,7 +220,7 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                 </div>
 
                 {/* Timeline grid */}
-                <div className="flex-1 relative min-h-[70px] min-w-[1200px]">
+                <div className="flex-1 relative h-[40px] min-w-[1200px]">
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
                     {timeSlots.map((time, idx) => (
@@ -224,11 +228,10 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                     ))}
                   </div>
 
-                  {/* Flight bars */}
-                  <div className="absolute inset-0 p-1">
-                    {flightsByRegistration[registration]?.map((flight, idx) => {
+                  {/* Flight bars - single row per registration */}
+                  <div className="absolute inset-0 flex items-center px-1">
+                    {flightsByRegistration[registration]?.map((flight) => {
                       const position = getFlightPosition(flight.std, flight.sta);
-                      const topOffset = idx * 22;
                       
                       return (
                         <div
@@ -236,13 +239,13 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
                           draggable
                           onDragStart={(e) => handleDragStart(e, flight)}
                           onDragEnd={handleDragEnd}
-                          className={`absolute h-[18px] rounded-md border-2 cursor-move transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
+                          onClick={() => setSelectedFlight(flight)}
+                          className={`absolute h-[24px] rounded-md border-2 cursor-pointer transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
                             flight.status
                           )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
                           style={{
                             left: position.left,
                             width: position.width,
-                            top: `${topOffset}px`,
                           }}
                           title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                         >
@@ -304,6 +307,47 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
           <p>No flights available for the selected filters</p>
         </div>
       )}
+
+      {/* Flight Details Dialog */}
+      <Dialog open={!!selectedFlight} onOpenChange={(open) => !open && setSelectedFlight(null)}>
+        <DialogContent className="bg-background">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plane className="w-5 h-5" />
+              Flight Details - {selectedFlight?.flightNo}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedFlight && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-semibold">Registration:</span> {selectedFlight.registration}</div>
+                <div><span className="font-semibold">Date:</span> {selectedFlight.date}</div>
+                <div><span className="font-semibold">STD:</span> {selectedFlight.std}</div>
+                <div><span className="font-semibold">STA:</span> {selectedFlight.sta}</div>
+                <div><span className="font-semibold">ADEP:</span> {selectedFlight.adep}</div>
+                <div><span className="font-semibold">Operator:</span> {selectedFlight.operator}</div>
+                <div><span className="font-semibold">Status:</span> <Badge variant="outline">{selectedFlight.status}</Badge></div>
+                <div><span className="font-semibold">Flight Type:</span> {selectedFlight.flightType}</div>
+                <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
+                <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
+              </div>
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    setSelectedFlight(null);
+                    onNavigateToCreate?.();
+                  }}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Go to Create Flight
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

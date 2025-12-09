@@ -26,6 +26,7 @@ const ITEMS_PER_PAGE = 15;
 const Index = () => {
   const { aircraft: dbAircraft, loading, updateAircraft, refetch } = useAircraftData();
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeTab, setActiveTab] = useState("operations");
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     registration: "",
@@ -113,7 +114,7 @@ const Index = () => {
         <DashboardStats aircraft={filteredAircraft} />
 
         {/* Tabs */}
-        <Tabs defaultValue="operations" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList>
             <TabsTrigger value="operations">Flight Operations</TabsTrigger>
             <TabsTrigger value="create">Create Flight</TabsTrigger>
@@ -270,7 +271,11 @@ const Index = () => {
 
           {/* Gantt View Tab */}
           <TabsContent value="gantt">
-            <GanttView aircraft={filteredAircraft} onUpdateFlight={updateAircraft} />
+            <GanttView 
+              aircraft={filteredAircraft} 
+              onUpdateFlight={updateAircraft} 
+              onNavigateToCreate={() => setActiveTab("create")}
+            />
           </TabsContent>
 
           {/* Excel View Tab */}
