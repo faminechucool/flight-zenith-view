@@ -179,10 +179,10 @@ export const GanttView = ({ aircraft, onUpdateFlight }: GanttViewProps) => {
       </div>
 
       <div className="rounded-md border overflow-auto bg-background">
-        {/* Column headers - Date and 24-hour time slots */}
+        {/* Column headers - Registration + 24-hour time slots */}
         <div className="sticky top-0 z-20 bg-background border-b">
-          <div className="flex flex-col">
-            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-10">
+          <div className="flex">
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-30 bg-muted/50">
               Registration
             </div>
             <div className="flex min-w-[1200px]">
