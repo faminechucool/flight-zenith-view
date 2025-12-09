@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AircraftTableData } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +20,14 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
   const [draggedFlight, setDraggedFlight] = useState<AircraftTableData | null>(null);
   const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
 
+  // local copy of aircraft for optimistic UI updates
+  const [localAircraft, setLocalAircraft] = useState<AircraftTableData[]>(aircraft);
+
+  // sync local copy when prop changes
+  useEffect(() => {
+    setLocalAircraft(aircraft);
+  }, [aircraft]);
+
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
     return Array.from(weeks).sort((a, b) => a - b);
@@ -38,7 +46,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
   }, [aircraft]);
 
   const filteredAircraft = useMemo(() => {
-    let filtered = aircraft;
+    let filtered = localAircraft;
     
     if (selectedWeek !== "all") {
       filtered = filtered.filter(a => a.weekNumber === parseInt(selectedWeek));
@@ -54,7 +62,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
       if (regOrder !== 0) return regOrder;
       return a.std.localeCompare(b.std);
     });
-  }, [aircraft, selectedWeek, selectedDate]);
+  }, [localAircraft, selectedWeek, selectedDate]);
 
   // Time slots for the timeline (24 hours)
   const timeSlots = Array.from({ length: 24 }, (_, i) => {
@@ -130,7 +138,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
   const handleDrop = async (e: React.DragEvent, targetRegistration: string) => {
     e.preventDefault();
 
-    // Only allow time change when dropping inside same registration row
     if (!draggedFlight) {
       setDraggedFlight(null);
       return;
@@ -161,11 +168,18 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     const newStd = formatMinutesToTime(newStartMinutes);
     const newSta = formatMinutesToTime(newStartMinutes + duration);
 
-    // call parent update callback — adjust field/newValue as your parent expects
+    // optimistic update: snapshot, update UI, call API, revert on failure
+    const prevSnapshot = localAircraft;
+    setLocalAircraft(prev =>
+      prev.map(f => f.id === draggedFlight.id ? { ...f, std: newStd, sta: newSta } : f)
+    );
+
     try {
-      await onUpdateFlight(draggedFlight.id, 'day', newStd); // <-- change if API expects different field
+      await onUpdateFlight(draggedFlight.id, 'day', newStd); // adjust call if API differs
       toast.success(`Moved ${draggedFlight.flightNo} to ${newStd} (${newSta})`);
     } catch (err) {
+      // revert optimistic update
+      setLocalAircraft(prevSnapshot);
       toast.error('Unable to update flight time');
     } finally {
       setDraggedFlight(null);
