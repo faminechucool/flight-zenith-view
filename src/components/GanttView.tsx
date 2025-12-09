@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import Draggable from "react-draggable";
 import { AircraftTableData } from "@/data/mockData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,12 +18,11 @@ interface GanttViewProps {
 export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
-  const [draggedFlight, setDraggedFlight] = useState<AircraftTableData | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
-
+  
   // local copy of aircraft for optimistic UI updates
   const [localAircraft, setLocalAircraft] = useState<AircraftTableData[]>(aircraft);
-  const [isUpdating, setIsUpdating] = useState(false);
   
   // sync local copy when prop changes
   useEffect(() => {
@@ -120,18 +120,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     return { left: `${startPercent}%`, width: `${Math.max(widthPercent, 4)}%` };
   };
 
-  const handleDragStart = (e: React.DragEvent, flight: AircraftTableData) => {
-    setDraggedFlight(flight);
-    e.dataTransfer.effectAllowed = "move";
-    // store flight id in dataTransfer so native drag works consistently
-    try { e.dataTransfer.setData("text/plain", flight.id); } catch {}
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
   const formatMinutesToTime = (minutes: number) => {
     const m = ((minutes % 1440) + 1440) % 1440; // normalize 0..1439
     const hh = Math.floor(m / 60).toString().padStart(2, '0');
@@ -139,61 +127,22 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     return `${hh}:${mm}`;
   };
 
-  const handleDrop = async (e: React.DragEvent, targetRegistration: string) => {
-    e.preventDefault();
-
-    if (!draggedFlight) {
-      setDraggedFlight(null);
-      return;
-    }
-
-    if (draggedFlight.registration !== targetRegistration) {
-      toast.info(`Drag between registrations not supported. Drop within the same registration to change time.`);
-      setDraggedFlight(null);
-      return;
-    }
-
-    // Get bounding rect of the timeline area dropped onto (the element with relative positioning)
-    const timelineEl = e.currentTarget as HTMLElement;
-    const rect = timelineEl.getBoundingClientRect();
-    const dropX = e.clientX - rect.left;
-    const percent = Math.max(0, Math.min(1, dropX / rect.width));
-    const newStartMinutes = Math.round(percent * 24 * 60);
-
-    // compute original duration in minutes (handle overnight)
-    const parseToMinutes = (time: string) => {
-      const [h, m] = time.split(':').map(Number);
-      return h * 60 + (m || 0);
-    };
-    const origStart = parseToMinutes(draggedFlight.std);
-    const origEnd = parseToMinutes(draggedFlight.sta);
-    const duration = (origEnd < origStart) ? (origEnd + 1440 - origStart) : (origEnd - origStart);
-
-    const newStd = formatMinutesToTime(newStartMinutes);
-    const newSta = formatMinutesToTime(newStartMinutes + duration);
-
-    // Save snapshot before optimistic update (and mark as updating so props won't override it)
+  const handleFlightTimeChange = async (flight: AircraftTableData, newStd: string, newSta: string) => {
     const prevSnapshot = localAircraft;
     setIsUpdating(true);
     setLocalAircraft(prev =>
-      prev.map(f => f.id === draggedFlight.id ? { ...f, std: newStd, sta: newSta } : f)
+      prev.map(f => f.id === flight.id ? { ...f, std: newStd, sta: newSta } : f)
     );
 
     try {
-      await onUpdateFlight(draggedFlight.id, 'day', newStd); // adjust call if API differs
-      toast.success(`Moved ${draggedFlight.flightNo} to ${newStd} (${newSta})`);
+      await onUpdateFlight(flight.id, 'day', newStd);
+      toast.success(`Moved ${flight.flightNo} to ${newStd} (${newSta})`);
     } catch (err) {
-      // revert optimistic update
       setLocalAircraft(prevSnapshot);
       toast.error('Unable to update flight time');
     } finally {
-      setDraggedFlight(null);
       setIsUpdating(false);
     }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedFlight(null);
   };
 
   // Group flights by registration and calculate lanes to avoid overlap
@@ -312,9 +261,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
           {registrations.map((registration, rowIndex) => (
             <div
               key={registration}
-              className={`flex flex-col border-b hover:bg-muted/20 transition-colors ${
-                draggedFlight && draggedFlight.registration !== registration ? 'bg-primary/5' : ''
-              }`}
+              className={`flex flex-col border-b hover:bg-muted/20 transition-colors`}
             >
               {/* Registration label */}
               <div className="flex w-full">
@@ -329,8 +276,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                 <div 
                   className="flex-1 relative min-w-[1200px]"
                   style={{ height: `${Math.max(maxLanesPerRegistration[registration] * 28 + 8, 40)}px` }}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, registration)}
                 >
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
@@ -343,30 +288,53 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                   <div className="absolute inset-0 px-1 py-1">
                     {flightsByRegistration[registration]?.map(({ flight, lane }) => {
                       const position = getFlightPosition(flight.std, flight.sta);
+                      const pixelsPerHour = 1200 / 24; // 50px per hour
+                      const pixelsPerMinute = pixelsPerHour / 60; // ~0.833px per minute
                       
                       return (
-                        <div
+                        <Draggable
                           key={flight.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, flight)}
-                          onDragEnd={handleDragEnd}
-                          onClick={() => setSelectedFlight(flight)}
-                          className={`absolute h-[24px] rounded-md border-2 cursor-pointer transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
-                            flight.status
-                          )} ${draggedFlight?.id === flight.id ? 'opacity-50' : ''}`}
-                          style={{
-                            left: position.left,
-                            width: position.width,
-                            top: `${lane * 28 + 4}px`,
+                          axis="x"
+                          bounds="parent"
+                          grid={[pixelsPerMinute, 0]} // Snap to 1-minute increments
+                          onStop={(e, data) => {
+                            // data.x is pixels moved
+                            const minutesMoved = Math.round(data.x / pixelsPerMinute);
+                            
+                            const parseToMinutes = (time: string) => {
+                              const [h, m] = time.split(':').map(Number);
+                              return h * 60 + (m || 0);
+                            };
+                            const origStart = parseToMinutes(flight.std);
+                            const origEnd = parseToMinutes(flight.sta);
+                            const duration = (origEnd < origStart) ? (origEnd + 1440 - origStart) : (origEnd - origStart);
+                            
+                            const newStartMinutes = origStart + minutesMoved;
+                            const newStd = formatMinutesToTime(newStartMinutes);
+                            const newSta = formatMinutesToTime(newStartMinutes + duration);
+                            
+                            handleFlightTimeChange(flight, newStd, newSta);
                           }}
-                          title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                         >
-                          <div className="flex items-center gap-1 px-1 h-full">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`}></div>
-                            <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
-                            <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
+                          <div
+                            onClick={() => setSelectedFlight(flight)}
+                            className={`absolute h-[24px] rounded-md border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:z-10 hover:scale-105 ${getStatusColor(
+                              flight.status
+                            )}`}
+                            style={{
+                              left: position.left,
+                              width: position.width,
+                              top: `${lane * 28 + 4}px`,
+                            }}
+                            title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
+                          >
+                            <div className="flex items-center gap-1 px-1 h-full">
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`}></div>
+                              <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
+                              <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
+                            </div>
                           </div>
-                        </div>
+                        </Draggable>
                       );
                     })}
                   </div>
@@ -443,7 +411,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                 <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
                 <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
               </div>
-              
             </div>
           )}
         </DialogContent>
