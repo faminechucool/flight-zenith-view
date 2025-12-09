@@ -135,14 +135,61 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     setDraggedFlight(null);
   };
 
-  // Group flights by registration for timeline view
+  // Group flights by registration and calculate lanes to avoid overlap
   const flightsByRegistration = useMemo(() => {
-    const grouped: { [key: string]: AircraftTableData[] } = {};
+    const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
+    
     registrations.forEach(reg => {
-      grouped[reg] = filteredAircraft.filter(f => f.registration === reg);
+      const flights = filteredAircraft.filter(f => f.registration === reg);
+      const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
+      
+      // Sort flights by start time
+      const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
+      
+      // Track end times for each lane
+      const laneEndTimes: number[] = [];
+      
+      sortedFlights.forEach(flight => {
+        const parseTime = (time: string) => {
+          const [hours, minutes] = time.split(':').map(Number);
+          return hours * 60 + minutes;
+        };
+        
+        const startMinutes = parseTime(flight.std);
+        const endMinutes = parseTime(flight.sta);
+        const adjustedEnd = endMinutes < startMinutes ? endMinutes + 1440 : endMinutes; // Handle overnight
+        
+        // Find the first available lane
+        let assignedLane = 0;
+        for (let i = 0; i < laneEndTimes.length; i++) {
+          if (laneEndTimes[i] <= startMinutes) {
+            assignedLane = i;
+            break;
+          }
+          assignedLane = i + 1;
+        }
+        
+        // Update lane end time
+        laneEndTimes[assignedLane] = adjustedEnd;
+        
+        flightsWithLanes.push({ flight, lane: assignedLane });
+      });
+      
+      grouped[reg] = flightsWithLanes;
     });
+    
     return grouped;
   }, [filteredAircraft, registrations]);
+
+  // Get max lanes per registration for dynamic row height
+  const maxLanesPerRegistration = useMemo(() => {
+    const maxLanes: { [key: string]: number } = {};
+    registrations.forEach(reg => {
+      const flights = flightsByRegistration[reg] || [];
+      maxLanes[reg] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
+    });
+    return maxLanes;
+  }, [flightsByRegistration, registrations]);
 
   return (
     <div className="space-y-6">
@@ -220,7 +267,10 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                 </div>
 
                 {/* Timeline grid */}
-                <div className="flex-1 relative h-[40px] min-w-[1200px]">
+                <div 
+                  className="flex-1 relative min-w-[1200px]"
+                  style={{ height: `${Math.max(maxLanesPerRegistration[registration] * 28 + 8, 40)}px` }}
+                >
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
                     {timeSlots.map((time, idx) => (
@@ -228,9 +278,9 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                     ))}
                   </div>
 
-                  {/* Flight bars - single row per registration */}
-                  <div className="absolute inset-0 flex items-center px-1">
-                    {flightsByRegistration[registration]?.map((flight) => {
+                  {/* Flight bars - multiple lanes per registration */}
+                  <div className="absolute inset-0 px-1 py-1">
+                    {flightsByRegistration[registration]?.map(({ flight, lane }) => {
                       const position = getFlightPosition(flight.std, flight.sta);
                       
                       return (
@@ -246,6 +296,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                           style={{
                             left: position.left,
                             width: position.width,
+                            top: `${lane * 28 + 4}px`,
                           }}
                           title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                         >
