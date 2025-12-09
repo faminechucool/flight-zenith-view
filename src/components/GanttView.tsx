@@ -140,11 +140,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
     const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
     
     registrations.forEach(reg => {
-<<<<<<< HEAD
-      grouped[reg] = filteredAircraft
-        .filter(f => f.registration === reg)
-        .sort((x, y) => x.std.localeCompare(y.std)); // keep flights ordered by time
-=======
       const flights = filteredAircraft.filter(f => f.registration === reg);
       const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
       
@@ -181,7 +176,6 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
       });
       
       grouped[reg] = flightsWithLanes;
->>>>>>> 13e25fd4e2477bc4cb5812ed25de7945223119e5
     });
     
     return grouped;
@@ -388,19 +382,7 @@ export const GanttView = ({ aircraft, onUpdateFlight, onNavigateToCreate }: Gant
                 <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
                 <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
               </div>
-              <div className="flex gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={() => {
-                    setSelectedFlight(null);
-                    onNavigateToCreate?.();
-                  }}
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Go to Create Flight
-                </Button>
-              </div>
+              
             </div>
           )}
         </DialogContent>
