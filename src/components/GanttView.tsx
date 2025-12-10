@@ -10,7 +10,7 @@ import { Plane, Edit, ExternalLink } from "lucide-react";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
-  onUpdateFlightTimes: (id: string, newStd: string, newSta: string) => Promise<any>;
+  onUpdateFlightTimes: (id: string, newStd: string, newSta: string) => Promise<unknown>;
   onNavigateToCreate?: () => void;
 }
 
@@ -485,12 +485,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
                 <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
               </div>
-              <div className="flex gap-2 pt-4">
-                <Button variant="outline" onClick={() => onNavigateToCreate?.()}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Create New Flight
-                </Button>
-              </div>
+              
             </div>
           )}
         </DialogContent>
