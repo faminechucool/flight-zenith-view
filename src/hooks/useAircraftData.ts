@@ -110,6 +110,60 @@ export const useAircraftData = () => {
     }
   }
 
+  const updateFlightTimes = async (id: string, newStd: string, newSta: string, changedBy: string = 'User') => {
+    try {
+      const currentAircraft = aircraft.find(a => a.id === id)
+      if (!currentAircraft) throw new Error('Aircraft not found')
+
+      const oldStd = currentAircraft.std
+      const oldSta = currentAircraft.sta
+
+      // Update aircraft data with new times
+      const { error: updateError } = await supabase
+        .from('aircraft_data')
+        .update({ 
+          std: newStd,
+          sta: newSta,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+
+      if (updateError) throw updateError
+
+      // Log the activity for STD change
+      await supabase
+        .from('activity_log')
+        .insert({
+          aircraft_id: id,
+          field_name: 'std',
+          old_value: oldStd,
+          new_value: newStd,
+          changed_by: changedBy,
+          changed_at: new Date().toISOString()
+        })
+
+      // Log the activity for STA change
+      await supabase
+        .from('activity_log')
+        .insert({
+          aircraft_id: id,
+          field_name: 'sta',
+          old_value: oldSta,
+          new_value: newSta,
+          changed_by: changedBy,
+          changed_at: new Date().toISOString()
+        })
+
+      // Refresh data
+      await fetchAircraft()
+      
+      return { success: true }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update flight times')
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to update flight times' }
+    }
+  }
+
   useEffect(() => {
     fetchAircraft()
   }, [])
@@ -119,6 +173,7 @@ export const useAircraftData = () => {
     loading,
     error,
     updateAircraft,
+    updateFlightTimes,
     refetch: fetchAircraft
   }
 }

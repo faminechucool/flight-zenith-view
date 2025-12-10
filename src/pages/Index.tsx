@@ -24,7 +24,7 @@ import {
 const ITEMS_PER_PAGE = 15;
 
 const Index = () => {
-  const { aircraft: dbAircraft, loading, updateAircraft, refetch } = useAircraftData();
+  const { aircraft: dbAircraft, loading, updateAircraft, updateFlightTimes, refetch } = useAircraftData();
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState("operations");
   const [filters, setFilters] = useState<FilterState>({
@@ -273,7 +273,7 @@ const Index = () => {
           <TabsContent value="gantt">
             <GanttView 
               aircraft={filteredAircraft} 
-              onUpdateFlight={updateAircraft} 
+              onUpdateFlightTimes={updateFlightTimes} 
               onNavigateToCreate={() => setActiveTab("create")}
             />
           </TabsContent>
