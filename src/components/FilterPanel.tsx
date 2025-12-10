@@ -23,7 +23,7 @@ interface FilterPanelProps {
 }
 
 export const FilterPanel = ({ filters, onFiltersChange, onClearFilters, aircraftData }: FilterPanelProps) => {
-  const updateFilters = (key: keyof FilterState, value: any) => {
+  const updateFilters = (key: keyof FilterState, value: unknown) => {
     onFiltersChange({ ...filters, [key]: value });
   };
 

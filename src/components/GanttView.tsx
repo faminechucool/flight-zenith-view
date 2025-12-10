@@ -136,20 +136,28 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return `${hh}:${mm}`;
   };
 
-  const getFlightPixelPosition = (std: string, sta: string, offsetMinutes: number = 0) => {
-    const startMinutes = parseTimeToMinutes(std) + offsetMinutes;
-    const endMinutes = parseTimeToMinutes(sta) + offsetMinutes;
-    
-    const normalizedStart = ((startMinutes % 1440) + 1440) % 1440;
-    const duration = endMinutes < startMinutes + offsetMinutes 
-      ? (1440 - parseTimeToMinutes(std)) + parseTimeToMinutes(sta) 
-      : parseTimeToMinutes(sta) - parseTimeToMinutes(std);
-    
-    return {
-      left: normalizedStart,
-      width: Math.max(duration, 30) // Minimum 30px width
-    };
+  const getFlightPixelPosition = (std, sta, offsetMinutes = 0, weekNum) => {
+  const startMin = parseTimeToMinutes(std) + offsetMinutes;
+  const endMin = parseTimeToMinutes(sta) + offsetMinutes;
+
+  // duration handling (cross midnight)
+  const duration = endMin < startMin ? (1440 - startMin) + endMin : endMin - startMin;
+
+  // Calculate weekly shift
+  const weekIndex = availableWeeks.indexOf(weekNum);
+  const weekOffsetPx = weekIndex * TIMELINE_WIDTH; // SHIFT BY WEEK
+
+  // Pixel conversion
+  const startPosPx = (startMin % 1440) * (TIMELINE_WIDTH / 1440);
+  const widthPx = Math.max(duration * (TIMELINE_WIDTH / 1440), 30); // minimum width
+
+  return {
+    left: weekOffsetPx + startPosPx,
+    width: widthPx,
   };
+};
+
+
 
   // Group flights by registration + week + day
   const flightsByRow = useMemo(() => {
@@ -290,7 +298,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-4 bg-muted/10 rounded-md">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <Plane className="w-6 h-6" />
           Aviation Timeline
@@ -330,28 +338,46 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
         {/* Column headers */}
         <div className="sticky top-0 z-20 bg-background border-b">
           <div className="flex">
-            <div className="w-[60px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30">
-              Week
-            </div>
-            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[60px] z-30">
+            
+            {/* Day label */}
+           
+            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[0px] z-30">
               Date
             </div>
-            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[140px] z-30">
+            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[60px] z-30">
               Registration
             </div>
-            <div className="flex" style={{ width: `${TIMELINE_WIDTH}px` }}>
-              {timeSlots.map((time) => (
-                <div 
-                  key={time} 
-                  className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
-                  style={{ width: `${TIMELINE_WIDTH / 24}px` }}
-                >
-                  {time}
-                </div>
-              ))}
-            </div>
-          </div>
+            {/* Timeline with Weeks row */}
+<div className="flex flex-col">
+  {/* Weeks Row */}
+  <div className="flex">
+    {availableWeeks.map((week, index) => (
+      <div
+        key={week}
+        className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
+        style={{ width: `${TIMELINE_WIDTH}px` }}  // <-- One full day (1440px)
+      >
+        Week {week}
+      </div>
+    ))}
+  </div>
+
+  {/* Time Row repeated for each week */}
+  <div className="flex">
+    {availableWeeks.map((week) =>
+      timeSlots.map((time) => (
+        <div
+          key={week + time}
+          className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
+          style={{ width: `${TIMELINE_WIDTH / 24}px` }}
+        >
+          {time}
         </div>
+      ))
+    )}
+  </div>
+</div>
+</div> </div>
 
         {/* Timeline rows - grouped by registration + week + day */}
         <div className="min-h-[500px]" ref={timelineRef}>
@@ -367,22 +393,23 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 key={rowKey}
                 className="flex border-b hover:bg-muted/20 transition-colors"
               >
-                {/* Week label */}
+                {/* Week label 
                 <div className="w-[60px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-0 z-10 bg-background flex items-center justify-center">
                   <span className="text-xs font-medium text-muted-foreground">
                     W{weekNum}
                   </span>
                 </div>
+                */}
                 
                 {/* Day label */}
-                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[60px] z-10 bg-background flex items-center justify-center">
+                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[0px] z-10 bg-background flex items-center justify-center">
                   <span className="text-xs font-medium text-muted-foreground">
                     {date}
                   </span>
                 </div>
                 
                 {/* Registration label */}
-                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[140px] z-10 bg-background">
+                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[60px] z-10 bg-background">
                   <div className="font-semibold text-sm">{registration}</div>
                   <div className="text-xs text-muted-foreground">
                     {flights.length} flights
@@ -419,7 +446,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                       const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
                       
                       const offset = isDragging ? dragOffset : 0;
-                      const position = getFlightPixelPosition(displayStd, displaySta, offset);
+                      const position = getFlightPixelPosition(displayStd, displaySta, offset,flight.weekNumber);
                       
                       return (
                         <div
@@ -520,9 +547,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 <div><span className="font-semibold">Status:</span> <Badge variant="outline">{selectedFlight.status}</Badge></div>
                 <div><span className="font-semibold">Flight Type:</span> {selectedFlight.flightType}</div>
                 <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
-                {/*
-                <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div> 
-   */}
                 <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
               </div>
               
