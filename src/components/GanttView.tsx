@@ -41,9 +41,16 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return Array.from(dates).sort();
   }, [aircraft]);
 
-  const registrations = useMemo(() => {
-    const regs = new Set(aircraft.map(a => a.registration));
-    return Array.from(regs).sort();
+  // Create unique row keys combining registration + week
+  const rowKeys = useMemo(() => {
+    const keys = new Set(aircraft.map(a => `${a.registration}|${a.weekNumber}`));
+    return Array.from(keys).sort((a, b) => {
+      const [regA, weekA] = a.split('|');
+      const [regB, weekB] = b.split('|');
+      const regCompare = regA.localeCompare(regB);
+      if (regCompare !== 0) return regCompare;
+      return parseInt(weekA) - parseInt(weekB);
+    });
   }, [aircraft]);
 
   const filteredAircraft = useMemo(() => {
@@ -124,12 +131,15 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     };
   };
 
-  // Group flights by registration and calculate lanes
-  const flightsByRegistration = useMemo(() => {
+  // Group flights by registration + week and calculate lanes
+  const flightsByRow = useMemo(() => {
     const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
     
-    registrations.forEach(reg => {
-      const flights = filteredAircraft.filter(f => f.registration === reg);
+    rowKeys.forEach(rowKey => {
+      const [registration, weekNum] = rowKey.split('|');
+      const flights = filteredAircraft.filter(f => 
+        f.registration === registration && f.weekNumber === parseInt(weekNum)
+      );
       const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
       
       const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
@@ -153,20 +163,20 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
         flightsWithLanes.push({ flight, lane: assignedLane });
       });
       
-      grouped[reg] = flightsWithLanes;
+      grouped[rowKey] = flightsWithLanes;
     });
     
     return grouped;
-  }, [filteredAircraft, registrations]);
+  }, [filteredAircraft, rowKeys]);
 
-  const maxLanesPerRegistration = useMemo(() => {
+  const maxLanesPerRow = useMemo(() => {
     const maxLanes: { [key: string]: number } = {};
-    registrations.forEach(reg => {
-      const flights = flightsByRegistration[reg] || [];
-      maxLanes[reg] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
+    rowKeys.forEach(rowKey => {
+      const flights = flightsByRow[rowKey] || [];
+      maxLanes[rowKey] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
     });
     return maxLanes;
-  }, [flightsByRegistration, registrations]);
+  }, [flightsByRow, rowKeys]);
 
   // Get week number for a flight
   const getFlightWeek = (flight: AircraftTableData) => {
@@ -312,21 +322,24 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
           </div>
         </div>
 
-        {/* Timeline rows */}
+        {/* Timeline rows - grouped by registration + week */}
         <div className="min-h-[500px]" ref={timelineRef}>
-          {registrations.map((registration) => {
-            const flights = flightsByRegistration[registration] || [];
-            const weekNumber = flights.length > 0 ? flights[0].flight.weekNumber : null;
+          {rowKeys.map((rowKey) => {
+            const [registration, weekNum] = rowKey.split('|');
+            const flights = flightsByRow[rowKey] || [];
+            
+            // Skip rows with no flights after filtering
+            if (flights.length === 0) return null;
             
             return (
               <div
-                key={registration}
+                key={rowKey}
                 className="flex border-b hover:bg-muted/20 transition-colors"
               >
                 {/* Week label */}
                 <div className="w-[60px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-0 z-10 bg-background flex items-center justify-center">
                   <span className="text-xs font-medium text-muted-foreground">
-                    {weekNumber ? `W${weekNumber}` : '-'}
+                    W{weekNum}
                   </span>
                 </div>
                 
@@ -343,7 +356,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                   className="relative"
                   style={{ 
                     width: `${TIMELINE_WIDTH}px`,
-                    height: `${Math.max(maxLanesPerRegistration[registration] * LANE_HEIGHT + 8, 48)}px` 
+                    height: `${Math.max(maxLanesPerRow[rowKey] * LANE_HEIGHT + 8, 48)}px` 
                   }}
                 >
                   {/* Background grid */}
