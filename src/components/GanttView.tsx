@@ -26,6 +26,8 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
   // Local state for optimistic UI updates during drag
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
+  // Store committed offsets for flights that are being saved
+  const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
   const dragStartRef = useRef<{ x: number; flightId: string } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
@@ -215,6 +217,9 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     const newStd = formatMinutesToTime(newStartMinutes);
     const newSta = formatMinutesToTime(newStartMinutes + duration);
 
+    // Store the pending update so the flight stays in position until data refreshes
+    setPendingUpdates(prev => ({ ...prev, [flightId]: { std: newStd, sta: newSta } }));
+    
     dragStartRef.current = null;
     setDraggedFlightId(null);
     setDragOffset(0);
@@ -224,6 +229,13 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
       toast.success(`Moved ${flight.flightNo} to ${newStd} - ${newSta}`);
     } catch (err) {
       toast.error('Failed to update flight time');
+    } finally {
+      // Clear pending update after data refreshes
+      setPendingUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[flightId];
+        return updated;
+      });
     }
   }, [dragOffset, aircraft, onUpdateFlightTimes]);
 
@@ -349,8 +361,14 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                   <div className="absolute inset-0 px-1 py-1">
                     {flights.map(({ flight, lane }) => {
                       const isDragging = draggedFlightId === flight.id;
+                      const pendingUpdate = pendingUpdates[flight.id];
+                      
+                      // Use pending update times if available, otherwise use flight data
+                      const displayStd = pendingUpdate ? pendingUpdate.std : flight.std;
+                      const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
+                      
                       const offset = isDragging ? dragOffset : 0;
-                      const position = getFlightPixelPosition(flight.std, flight.sta, offset);
+                      const position = getFlightPixelPosition(displayStd, displaySta, offset);
                       
                       return (
                         <div
