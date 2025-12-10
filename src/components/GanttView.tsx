@@ -41,15 +41,32 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return Array.from(dates).sort();
   }, [aircraft]);
 
+  // Get unique days for each week
+  const daysByWeek = useMemo(() => {
+    const grouped: { [week: number]: string[] } = {};
+    aircraft.forEach(a => {
+      if (!grouped[a.weekNumber]) grouped[a.weekNumber] = [];
+      if (!grouped[a.weekNumber].includes(a.date)) {
+        grouped[a.weekNumber].push(a.date);
+      }
+    });
+    Object.keys(grouped).forEach(week => {
+      grouped[parseInt(week)].sort();
+    });
+    return grouped;
+  }, [aircraft]);
+
   // Create unique row keys combining registration + week
   const rowKeys = useMemo(() => {
-    const keys = new Set(aircraft.map(a => `${a.registration}|${a.weekNumber}`));
+    const keys = new Set(aircraft.map(a => `${a.registration}|${a.weekNumber}|${a.date}`));
     return Array.from(keys).sort((a, b) => {
-      const [regA, weekA] = a.split('|');
-      const [regB, weekB] = b.split('|');
+      const [regA, weekA, dayA] = a.split('|');
+      const [regB, weekB, dayB] = b.split('|');
       const regCompare = regA.localeCompare(regB);
       if (regCompare !== 0) return regCompare;
-      return parseInt(weekA) - parseInt(weekB);
+      const weekCompare = parseInt(weekA) - parseInt(weekB);
+      if (weekCompare !== 0) return weekCompare;
+      return dayA.localeCompare(dayB);
     });
   }, [aircraft]);
 
@@ -131,14 +148,14 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     };
   };
 
-  // Group flights by registration + week and calculate lanes
+  // Group flights by registration + week + day
   const flightsByRow = useMemo(() => {
     const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
     
     rowKeys.forEach(rowKey => {
-      const [registration, weekNum] = rowKey.split('|');
+      const [registration, weekNum, date] = rowKey.split('|');
       const flights = filteredAircraft.filter(f => 
-        f.registration === registration && f.weekNumber === parseInt(weekNum)
+        f.registration === registration && f.weekNumber === parseInt(weekNum) && f.date === date
       );
       const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
       
@@ -305,7 +322,10 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
             <div className="w-[60px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30">
               Week
             </div>
-            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[60px] z-30">
+            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[60px] z-30">
+              Date
+            </div>
+            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[140px] z-30">
               Registration
             </div>
             <div className="flex" style={{ width: `${TIMELINE_WIDTH}px` }}>
@@ -322,10 +342,10 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
           </div>
         </div>
 
-        {/* Timeline rows - grouped by registration + week */}
+        {/* Timeline rows - grouped by registration + week + day */}
         <div className="min-h-[500px]" ref={timelineRef}>
           {rowKeys.map((rowKey) => {
-            const [registration, weekNum] = rowKey.split('|');
+            const [registration, weekNum, date] = rowKey.split('|');
             const flights = flightsByRow[rowKey] || [];
             
             // Skip rows with no flights after filtering
@@ -343,8 +363,15 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                   </span>
                 </div>
                 
+                {/* Day label */}
+                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[60px] z-10 bg-background flex items-center justify-center">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {date}
+                  </span>
+                </div>
+                
                 {/* Registration label */}
-                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[60px] z-10 bg-background">
+                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[140px] z-10 bg-background">
                   <div className="font-semibold text-sm">{registration}</div>
                   <div className="text-xs text-muted-foreground">
                     {flights.length} flights
@@ -387,10 +414,10 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                         <div
                           key={flight.id}
                           onMouseDown={(e) => handleMouseDown(e, flight.id)}
-                          onClick={(e) => {
-                            if (!isDragging && dragOffset === 0) {
-                              setSelectedFlight(flight);
-                            }
+                          onDoubleClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedFlight(flight);
                           }}
                           className={`absolute rounded-md border-2 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-lg hover:z-10 ${getStatusColor(flight.status)} ${isDragging ? 'z-50 shadow-xl' : ''}`}
                           style={{
