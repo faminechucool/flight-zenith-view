@@ -14,7 +14,7 @@ import { ActivityLogDialog } from "@/components/ActivityLogDialog";
 
 interface AircraftTableProps {
   aircraft: AircraftTableData[];
-  onUpdate?: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType', newValue: string) => Promise<{ success: boolean; error?: string }>;
+  onUpdate?: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType'|'weekNumber'|'date', newValue: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 
@@ -65,7 +65,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
     { value: "acmi", label: "ACMI" },
   ];
 
-  const handleUpdate = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType', newValue: string) => {
+  const handleUpdate = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber'|'date', newValue: string) => {
     if (onUpdate) {
       return await onUpdate(id, field, newValue);
     }

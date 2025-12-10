@@ -49,7 +49,7 @@ export const useAircraftData = () => {
     }
   }
 
-  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'day', newValue: string, changedBy: string = 'User') => {
+  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' |'weekNumber'|'date', newValue: string, changedBy: string = 'User') => {
 
     try {
       const currentAircraft = aircraft.find(a => a.id === id)
@@ -73,6 +73,7 @@ export const useAircraftData = () => {
         ? 'status'
         : field === 'flightType'
         ? 'flight_type'
+        
         : 'day'
 
       // Update aircraft data

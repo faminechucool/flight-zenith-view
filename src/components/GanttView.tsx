@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Plane, Edit, ExternalLink } from "lucide-react";
+import { set } from "date-fns";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
@@ -26,9 +27,11 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
   // Local state for optimistic UI updates during drag
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0); // vertical: rows/days
+
   // Store committed offsets for flights that are being saved
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
-  const dragStartRef = useRef<{ x: number; flightId: string } | null>(null);
+  const dragStartRef = useRef<{ x: number; y:number;flightId: string } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const availableWeeks = useMemo(() => {
@@ -204,18 +207,23 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
   const handleMouseDown = useCallback((e: React.MouseEvent, flightId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    dragStartRef.current = { x: e.clientX, flightId };
+    dragStartRef.current = { x: e.clientX,y:e.clientY,flightId };
     setDraggedFlightId(flightId);
     setDragOffset(0);
-  }, []);
+    setDragOffsetY(0);
+      }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
+    const deltaY = e.clientY - dragStartRef.current.y;
     // Snap to 1-minute increments (1px = 1 minute)
     const snappedMinutes = Math.round(deltaX);
+     const snappedRows = Math.round(deltaY / LANE_HEIGHT);
     setDragOffset(snappedMinutes);
+    setDragOffsetY(snappedRows);
+    
   }, []);
 
   const handleMouseUp = useCallback(async () => {
@@ -223,6 +231,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
+      setDragOffsetY(0);
       return;
     }
 
@@ -233,6 +242,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
+      setDragOffsetY(0);
       return;
     }
 
@@ -250,6 +260,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     dragStartRef.current = null;
     setDraggedFlightId(null);
     setDragOffset(0);
+    setDragOffsetY(0);
 
     try {
       await onUpdateFlightTimes(flightId, newStd, newSta);
@@ -264,7 +275,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
         return updated;
       });
     }
-  }, [dragOffset, aircraft, onUpdateFlightTimes]);
+  }, [dragOffset,dragOffsetY,aircraft, onUpdateFlightTimes,daysByWeek]);
 
   useEffect(() => {
     if (draggedFlightId) {
@@ -423,7 +434,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                           style={{
                             left: `${position.left}px`,
                             width: `${position.width}px`,
-                            top: `${lane * LANE_HEIGHT + 4}px`,
+                            top: `${(lane + (draggedFlightId === flight.id ? dragOffsetY : 0)) * LANE_HEIGHT + 4}px`,
                             height: `${FLIGHT_HEIGHT}px`,
                             userSelect: 'none',
                           }}
@@ -509,7 +520,9 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 <div><span className="font-semibold">Status:</span> <Badge variant="outline">{selectedFlight.status}</Badge></div>
                 <div><span className="font-semibold">Flight Type:</span> {selectedFlight.flightType}</div>
                 <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
-                <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div>
+                {/*
+                <div><span className="font-semibold">Capacity:</span> {selectedFlight.capacityUsed}/{selectedFlight.totalCapacity}</div> 
+   */}
                 <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
               </div>
               
