@@ -11,7 +11,7 @@ import { Plane, Edit, ExternalLink } from "lucide-react";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
-  onUpdateFlight: (id: string, field: 'day', newValue: string) => Promise<any>;
+  onUpdateFlight: (id: string, field: 'day', newValue: string) => Promise<unknown>;
   onNavigateToCreate?: () => void;
 }
 
