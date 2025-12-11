@@ -3,7 +3,6 @@ import { AircraftTableData } from "@/data/mockData";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Plane, Clock } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -19,24 +18,23 @@ interface GanttViewProps {
 const BASE_TIMELINE_WIDTH = 1440;
 const FLIGHT_HEIGHT = 24;
 const LANE_HEIGHT = 32;
+const REG_COL_WIDTH = 120;
 
 export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
-  const [timeScale, setTimeScale] = useState<number>(1); // 0.5 to 2 scale factor
+  const [timeScale, setTimeScale] = useState<number>(1);
   
-  // Local state for optimistic UI updates during drag
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
-  const [dragOffsetY, setDragOffsetY] = useState<number>(0);
 
-  // Store committed offsets for flights that are being saved
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
   const dragStartRef = useRef<{ x: number; y: number; flightId: string; registration: string } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const TIMELINE_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
+  const HOUR_WIDTH = TIMELINE_WIDTH / 24;
 
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
@@ -48,7 +46,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     return Array.from(dates).sort();
   }, [aircraft]);
 
-  // Get filtered dates based on selected week
   const filteredDates = useMemo(() => {
     if (selectedWeek === "all") return availableDates;
     const weekNum = parseInt(selectedWeek);
@@ -57,6 +54,35 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     );
     return Array.from(datesForWeek).sort();
   }, [aircraft, selectedWeek, availableDates]);
+
+  // Group by week and date for header display
+  const weekDateGroups = useMemo(() => {
+    const groups: { week: number; dates: string[] }[] = [];
+    const weekMap = new Map<number, Set<string>>();
+    
+    aircraft.forEach(a => {
+      if (!weekMap.has(a.weekNumber)) {
+        weekMap.set(a.weekNumber, new Set());
+      }
+      weekMap.get(a.weekNumber)!.add(a.date);
+    });
+    
+    // Apply filters
+    weekMap.forEach((dates, week) => {
+      if (selectedWeek !== "all" && week !== parseInt(selectedWeek)) return;
+      
+      let filteredDatesArr = Array.from(dates).sort();
+      if (selectedDate !== "all") {
+        filteredDatesArr = filteredDatesArr.filter(d => d === selectedDate);
+      }
+      
+      if (filteredDatesArr.length > 0) {
+        groups.push({ week, dates: filteredDatesArr });
+      }
+    });
+    
+    return groups.sort((a, b) => a.week - b.week);
+  }, [aircraft, selectedWeek, selectedDate]);
 
   // Create unique row keys combining registration + week + date
   const rowKeys = useMemo(() => {
@@ -123,10 +149,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     }
   };
 
-  const getPositioningLabel = (positioning: string) => {
-    return positioning === 'ferry_flight' ? 'Ferry Flight (Empty)' : 'Live Flight (With Cargo)';
-  };
-
   const parseTimeToMinutes = (time: string): number => {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + (minutes || 0);
@@ -154,52 +176,27 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     };
   };
 
-  // Group flights by registration + week + day
-  const flightsByRow = useMemo(() => {
-    const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
+  // Group flights by registration
+  const flightsByRegistration = useMemo(() => {
+    const grouped: { [reg: string]: AircraftTableData[] } = {};
     
-    rowKeys.forEach(rowKey => {
-      const [registration, weekNum, date] = rowKey.split('|');
-      const flights = filteredAircraft.filter(f => 
-        f.registration === registration && f.weekNumber === parseInt(weekNum) && f.date === date
-      );
-      const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
-      
-      const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
-      const laneEndTimes: number[] = [];
-      
-      sortedFlights.forEach(flight => {
-        const startMinutes = parseTimeToMinutes(flight.std);
-        const endMinutes = parseTimeToMinutes(flight.sta);
-        const adjustedEnd = endMinutes < startMinutes ? endMinutes + 1440 : endMinutes;
-        
-        let assignedLane = 0;
-        for (let i = 0; i < laneEndTimes.length; i++) {
-          if (laneEndTimes[i] <= startMinutes) {
-            assignedLane = i;
-            break;
-          }
-          assignedLane = i + 1;
-        }
-        
-        laneEndTimes[assignedLane] = adjustedEnd;
-        flightsWithLanes.push({ flight, lane: assignedLane });
-      });
-      
-      grouped[rowKey] = flightsWithLanes;
+    filteredAircraft.forEach(flight => {
+      if (!grouped[flight.registration]) {
+        grouped[flight.registration] = [];
+      }
+      grouped[flight.registration].push(flight);
     });
     
     return grouped;
-  }, [filteredAircraft, rowKeys]);
+  }, [filteredAircraft]);
 
-  const maxLanesPerRow = useMemo(() => {
-    const maxLanes: { [key: string]: number } = {};
-    rowKeys.forEach(rowKey => {
-      const flights = flightsByRow[rowKey] || [];
-      maxLanes[rowKey] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
-    });
-    return maxLanes;
-  }, [flightsByRow, rowKeys]);
+  const uniqueRegistrations = useMemo(() => {
+    return Object.keys(flightsByRegistration).sort();
+  }, [flightsByRegistration]);
+
+  // Calculate total header width
+  const totalDatesCount = weekDateGroups.reduce((sum, g) => sum + g.dates.length, 0);
+  const totalTimelineWidth = totalDatesCount * TIMELINE_WIDTH;
 
   // Drag handlers
   const handleMouseDown = useCallback((e: React.MouseEvent, flightId: string, registration: string) => {
@@ -208,21 +205,14 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     dragStartRef.current = { x: e.clientX, y: e.clientY, flightId, registration };
     setDraggedFlightId(flightId);
     setDragOffset(0);
-    setDragOffsetY(0);
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
-    const deltaY = e.clientY - dragStartRef.current.y;
-    
-    // Convert pixel movement to minutes based on scale
     const minutesDelta = Math.round(deltaX / timeScale);
-    const rowsDelta = Math.round(deltaY / LANE_HEIGHT);
-    
     setDragOffset(minutesDelta);
-    setDragOffsetY(rowsDelta);
   }, [timeScale]);
 
   const handleMouseUp = useCallback(async () => {
@@ -230,7 +220,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
-      setDragOffsetY(0);
       return;
     }
 
@@ -241,7 +230,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
-      setDragOffsetY(0);
       return;
     }
 
@@ -253,13 +241,11 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     const newStd = formatMinutesToTime(newStartMinutes);
     const newSta = formatMinutesToTime(newStartMinutes + duration);
 
-    // Store the pending update so the flight stays in position until data refreshes
     setPendingUpdates(prev => ({ ...prev, [flightId]: { std: newStd, sta: newSta } }));
     
     dragStartRef.current = null;
     setDraggedFlightId(null);
     setDragOffset(0);
-    setDragOffsetY(0);
 
     try {
       await onUpdateFlightTimes(flightId, newStd, newSta);
@@ -297,15 +283,25 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     }
   };
 
-  // Get filtered row keys based on selections
-  const filteredRowKeys = useMemo(() => {
-    return rowKeys.filter(rowKey => {
-      const [, weekNum, date] = rowKey.split('|');
-      if (selectedWeek !== "all" && parseInt(weekNum) !== parseInt(selectedWeek)) return false;
-      if (selectedDate !== "all" && date !== selectedDate) return false;
-      return true;
-    });
-  }, [rowKeys, selectedWeek, selectedDate]);
+  // Get flight position including date offset
+  const getFlightPositionWithDateOffset = (flight: AircraftTableData, offsetMinutes = 0) => {
+    let dateOffset = 0;
+    
+    for (const group of weekDateGroups) {
+      for (const date of group.dates) {
+        if (group.week === flight.weekNumber && date === flight.date) {
+          const position = getFlightPixelPosition(flight.std, flight.sta, offsetMinutes);
+          return {
+            left: dateOffset + position.left,
+            width: position.width,
+          };
+        }
+        dateOffset += TIMELINE_WIDTH;
+      }
+    }
+    
+    return { left: 0, width: 0 };
+  };
 
   return (
     <div className="space-y-6">
@@ -315,7 +311,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           Aviation Timeline
         </h2>
         <div className="flex gap-3 items-center">
-          {/* Time Scale Slider */}
           <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-md">
             <Clock className="w-4 h-4 text-muted-foreground" />
             <Label className="text-xs text-muted-foreground">Zoom:</Label>
@@ -364,65 +359,85 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       </div>
 
       <div className="rounded-md border overflow-auto bg-background">
-        {/* Column headers */}
+        {/* Column headers - 3 rows: Week, Date, Time */}
         <div className="sticky top-0 z-20 bg-background border-b">
-          <div className="flex">
-            {/* Week label */}
-            <div className="w-[60px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30">
-              Week
-            </div>
-            {/* Date label */}
-            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[60px] z-30">
-              Date
-            </div>
-            {/* Registration label */}
-            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[140px] z-30">
+          {/* Week Row */}
+          <div className="flex border-b">
+            <div 
+              className="flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30"
+              style={{ width: `${REG_COL_WIDTH}px` }}
+            >
               Registration
             </div>
-            {/* Time headers */}
-            <div className="flex">
-              {timeSlots.map((time) => (
+            {weekDateGroups.map((group) => (
+              <div
+                key={`week-${group.week}`}
+                className="border-r p-2 text-center text-xs font-bold bg-primary/10 text-primary"
+                style={{ width: `${group.dates.length * TIMELINE_WIDTH}px` }}
+              >
+                Week {group.week}
+              </div>
+            ))}
+          </div>
+          
+          {/* Date Row */}
+          <div className="flex border-b">
+            <div 
+              className="flex-shrink-0 border-r bg-muted/50 p-1 sticky left-0 z-30"
+              style={{ width: `${REG_COL_WIDTH}px` }}
+            />
+            {weekDateGroups.map((group) => (
+              group.dates.map((date) => (
                 <div
-                  key={time}
-                  className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
-                  style={{ width: `${TIMELINE_WIDTH / 24}px` }}
+                  key={`date-${group.week}-${date}`}
+                  className="border-r p-2 text-center text-xs font-semibold bg-muted/30"
+                  style={{ width: `${TIMELINE_WIDTH}px` }}
                 >
-                  {time}
+                  {date}
                 </div>
-              ))}
-            </div>
+              ))
+            ))}
+          </div>
+          
+          {/* Time Row */}
+          <div className="flex">
+            <div 
+              className="flex-shrink-0 border-r bg-muted/50 p-1 sticky left-0 z-30"
+              style={{ width: `${REG_COL_WIDTH}px` }}
+            />
+            {weekDateGroups.map((group) => (
+              group.dates.map((date) => (
+                <div key={`time-${group.week}-${date}`} className="flex">
+                  {timeSlots.map((time) => (
+                    <div
+                      key={`${group.week}-${date}-${time}`}
+                      className="border-r p-1 text-center text-[10px] font-medium bg-muted/50 text-muted-foreground"
+                      style={{ width: `${HOUR_WIDTH}px`, minWidth: `${HOUR_WIDTH}px` }}
+                    >
+                      {time}
+                    </div>
+                  ))}
+                </div>
+              ))
+            ))}
           </div>
         </div>
 
-        {/* Timeline rows */}
-        <div className="min-h-[500px]" ref={timelineRef}>
-          {filteredRowKeys.map((rowKey) => {
-            const [registration, weekNum, date] = rowKey.split('|');
-            const flights = flightsByRow[rowKey] || [];
-            
-            if (flights.length === 0) return null;
+        {/* Timeline rows by registration */}
+        <div className="min-h-[400px]" ref={timelineRef}>
+          {uniqueRegistrations.map((registration) => {
+            const flights = flightsByRegistration[registration] || [];
             
             return (
               <div
-                key={rowKey}
+                key={registration}
                 className="flex border-b hover:bg-muted/20 transition-colors"
               >
-                {/* Week label */}
-                <div className="w-[60px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-0 z-10 bg-background flex items-center justify-center">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    W{weekNum}
-                  </span>
-                </div>
-                
-                {/* Date label */}
-                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[60px] z-10 bg-background flex items-center justify-center">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {date}
-                  </span>
-                </div>
-                
                 {/* Registration label */}
-                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[140px] z-10 bg-background">
+                <div 
+                  className="flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background"
+                  style={{ width: `${REG_COL_WIDTH}px` }}
+                >
                   <div className="font-semibold text-sm">{registration}</div>
                   <div className="text-xs text-muted-foreground">
                     {flights.length} flights
@@ -433,24 +448,30 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 <div 
                   className="relative"
                   style={{ 
-                    width: `${TIMELINE_WIDTH}px`,
-                    height: `${Math.max(maxLanesPerRow[rowKey] * LANE_HEIGHT + 8, 48)}px` 
+                    width: `${totalTimelineWidth}px`,
+                    minHeight: '48px'
                   }}
                 >
                   {/* Background grid */}
                   <div className="absolute inset-0 flex">
-                    {timeSlots.map((time, idx) => (
-                      <div 
-                        key={time} 
-                        className={`border-r ${idx % 6 === 0 ? 'bg-muted/10' : ''}`}
-                        style={{ width: `${TIMELINE_WIDTH / 24}px` }}
-                      />
+                    {weekDateGroups.map((group) => (
+                      group.dates.map((date) => (
+                        <div key={`grid-${group.week}-${date}`} className="flex">
+                          {timeSlots.map((time, idx) => (
+                            <div 
+                              key={`${group.week}-${date}-${time}`} 
+                              className={`border-r h-full ${idx % 6 === 0 ? 'bg-muted/10' : ''}`}
+                              style={{ width: `${HOUR_WIDTH}px`, minWidth: `${HOUR_WIDTH}px` }}
+                            />
+                          ))}
+                        </div>
+                      ))
                     ))}
                   </div>
 
                   {/* Flight bars */}
-                  <div className="absolute inset-0 px-1 py-1">
-                    {flights.map(({ flight, lane }) => {
+                  <div className="absolute inset-0 py-2 px-1">
+                    {flights.map((flight, idx) => {
                       const isDragging = draggedFlightId === flight.id;
                       const pendingUpdate = pendingUpdates[flight.id];
                       
@@ -458,7 +479,12 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                       const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
                       
                       const offset = isDragging ? dragOffset : 0;
-                      const position = getFlightPixelPosition(displayStd, displaySta, offset);
+                      const position = getFlightPositionWithDateOffset(
+                        { ...flight, std: displayStd, sta: displaySta },
+                        offset
+                      );
+                      
+                      if (position.width === 0) return null;
                       
                       return (
                         <div
@@ -473,7 +499,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                           style={{
                             left: `${position.left}px`,
                             width: `${position.width}px`,
-                            top: `${lane * LANE_HEIGHT + 4}px`,
+                            top: `${idx * (FLIGHT_HEIGHT + 4) + 4}px`,
                             height: `${FLIGHT_HEIGHT}px`,
                             userSelect: 'none',
                           }}
