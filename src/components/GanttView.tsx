@@ -753,10 +753,46 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 <Clock className="w-4 h-4 mr-2" />
                 Edit Times
               </Button>
+
+              {/* Approve and Decline Buttons */}
+              <div className="flex gap-2 pt-4">
+                <Button 
+                  onClick={async () => {
+                    try {
+                      await onUpdateAircraft(selectedFlight.id, 'status', 'operational');
+                      setSelectedFlight({ ...selectedFlight, status: 'operational' });
+                      toast.success(`${selectedFlight.flightNo} approved`);
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('Failed to approve flight');
+                    }
+                  }}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                   Approve
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    try {
+                      await onUpdateAircraft(selectedFlight.id, 'status', 'cancelled');
+                      setSelectedFlight({ ...selectedFlight, status: 'cancelled' });
+                      toast.success(`${selectedFlight.flightNo} declined`);
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('Failed to decline flight');
+                    }
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                >
+                   Decline
+                </Button>
+              </div>
               
               {/* Flight Positioning Dropdown */}
               <div className="space-y-2 pt-4 border-t">
-                <Label htmlFor="positioning" className="font-semibold">Flight Positioning</Label>
+                <Label htmlFor="positioning" className="font-semibold">
+                  Flight Positioning
+                </Label>
                 <Select 
                   value={selectedFlight.flightPositioning || "live_flight"}
                   onValueChange={async (newValue) => {
