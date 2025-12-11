@@ -8,6 +8,7 @@ export interface AircraftTableData {
   date: string;
   std: string;
   adep: string;
+  ades:string;
   sta: string;
   operator: string;
   flightType: "charter" | "schedule" | "acmi";
@@ -42,7 +43,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "Cargo Express Ltd",
     contractId: "CTR-2024-001",
     revenue: 78000,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   },
   {
     id: "2",
@@ -64,7 +66,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "International Logistics",
     contractId: "CTR-2024-002",
     revenue: 69000,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   },
   {
     id: "3",
@@ -86,7 +89,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "One Air Services",
     contractId: "CTR-2024-003",
     revenue: 0,
-    flightPositioning: "ferry_flight"
+    flightPositioning: "ferry_flight",
+    ades: ""
   },
   {
     id: "4",
@@ -108,7 +112,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "Alpha Sky Corporation",
     contractId: "CTR-2024-004",
     revenue: 0,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   },
   {
     id: "5",
@@ -130,7 +135,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "European Freight Co",
     contractId: "CTR-2024-005",
     revenue: 115000,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   },
   {
     id: "6",
@@ -152,7 +158,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "Premium Cargo Services",
     contractId: "CTR-2024-006",
     revenue: 114000,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   },
   {
     id: "7",
@@ -174,7 +181,8 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "Global Air Transport",
     contractId: "CTR-2024-007",
     revenue: 0,
-    flightPositioning: "ferry_flight"
+    flightPositioning: "ferry_flight",
+    ades: ""
   },
   {
     id: "8",
@@ -196,6 +204,7 @@ export const mockAircraftTableData: AircraftTableData[] = [
     clientName: "Regional ACMI Solutions",
     contractId: "CTR-2024-008",
     revenue: 44000,
-    flightPositioning: "live_flight"
+    flightPositioning: "live_flight",
+    ades: ""
   }
 ];

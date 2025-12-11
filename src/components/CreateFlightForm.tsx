@@ -40,6 +40,7 @@ const flightSchema = z.object({
   clientName: z.string().trim().min(1, "Client name is required").max(100, "Max 100 characters"),
   contractId: z.string().trim().min(1, "Contract ID is required").max(50, "Max 50 characters"),
   revenue: z.number().min(0, "Revenue must be positive"),
+  flightPositioning: z.enum(["live_flight", "ferry_flight"], { required_error: "Flight positioning is required" }),
 });
 
 type FlightFormData = z.infer<typeof flightSchema>;
@@ -72,6 +73,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
       clientName: "",
       contractId: "",
       revenue: 0,
+      flightPositioning: "live_flight",
     },
   });
 
@@ -192,6 +194,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         client_name: flight.clientName,
         contract_id: flight.contractId,
         revenue: flight.revenue,
+        flight_positioning: flight.flightPositioning as 'live_flight' | 'ferry_flight',
       }));
 
       const { error } = await supabase.from('aircraft_data').insert(dbFlights);
@@ -541,6 +544,28 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="flightPositioning"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Flight Positioning *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select positioning" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="bg-background border shadow-lg z-50">
+                          <SelectItem value="live_flight">Live Flight (With Cargo)</SelectItem>
+                          <SelectItem value="ferry_flight">Ferry Flight (Empty/Positioning)</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

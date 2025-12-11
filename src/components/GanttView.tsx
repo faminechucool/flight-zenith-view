@@ -1,12 +1,17 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { AircraftTableData } from "@/data/mockData";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { Plane, Clock } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Clock, Plane } from "lucide-react";
+import { toast } from "sonner";
+import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -21,6 +26,7 @@ const BASE_TIMELINE_WIDTH = 1440;
 const FLIGHT_HEIGHT = 24;
 const LANE_HEIGHT = 32;
 const REG_COL_WIDTH = 120;
+const DRAG_THRESHOLD = 5; // pixels before drag starts
 
 export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
@@ -31,6 +37,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
   const [dragOverCell, setDragOverCell] = useState<{ registration: string; date: string } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
   const [timePickerOpen, setTimePickerOpen] = useState(false);
@@ -38,7 +45,14 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   const [pickerStd, setPickerStd] = useState("00:00");
   const [pickerSta, setPickerSta] = useState("01:00");
   
-  const dragStartRef = useRef<{ x: number; flightId: string; registration: string; date: string } | null>(null);
+  const dragStartRef = useRef<{ 
+    x: number; 
+    y: number;
+    flightId: string; 
+    registration: string; 
+    date: string;
+    dragging: boolean;
+  } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const TIMELINE_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
@@ -176,10 +190,12 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     e.preventDefault();
     e.stopPropagation();
     dragStartRef.current = { 
-      x: e.clientX, 
+      x: e.clientX,
+      y: e.clientY,
       flightId: flight.id,
       registration: flight.registration,
-      date: flight.date
+      date: flight.date,
+      dragging: false
     };
     setDraggedFlightId(flight.id);
     setDragOffset(0);
@@ -189,6 +205,18 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   // Handle drag move
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current) return;
+    
+    const dx = Math.abs(e.clientX - dragStartRef.current.x);
+    const dy = Math.abs(e.clientY - dragStartRef.current.y);
+    
+    // Only start dragging after threshold
+    if (!dragStartRef.current.dragging && (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD)) {
+      dragStartRef.current.dragging = true;
+      setIsDragging(true);
+    }
+    
+    // Don't update position until drag threshold is crossed
+    if (!dragStartRef.current.dragging) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
     const snappedMinutes = Math.round(deltaX / (HOUR_WIDTH / 60));
@@ -213,15 +241,28 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       setDraggedFlightId(null);
       setDragOffset(0);
       setDragOverCell(null);
+      setIsDragging(false);
       return;
     }
 
+    const wasDragging = dragStartRef.current.dragging;
     const flight = aircraft.find(f => f.id === draggedFlightId);
     if (!flight) {
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
       setDragOverCell(null);
+      setIsDragging(false);
+      return;
+    }
+
+    // If wasn't actually dragging (just a click), let double-click handler take over
+    if (!wasDragging) {
+      dragStartRef.current = null;
+      setDraggedFlightId(null);
+      setDragOffset(0);
+      setDragOverCell(null);
+      setIsDragging(false);
       return;
     }
 
@@ -235,6 +276,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       setDraggedFlightId(null);
       setDragOffset(0);
       setDragOverCell(null);
+      setIsDragging(false);
       return;
     }
 
@@ -275,6 +317,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     setDraggedFlightId(null);
     setDragOffset(0);
     setDragOverCell(null);
+    setIsDragging(false);
 
     try {
       // Update time
@@ -316,6 +359,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       setTimePickerOpen(false);
       setTimePickerFlight(null);
     } catch (err) {
+      console.error(err);
       toast.error('Failed to update flight times');
     }
   };
@@ -331,6 +375,17 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       };
     }
   }, [draggedFlightId, handleMouseMove, handleMouseUp]);
+
+  // Handle double click
+  const handleDoubleClick = useCallback((e: React.MouseEvent, flight: AircraftTableData) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only open if not dragging
+    if (!isDragging) {
+      setSelectedFlight(flight);
+      console.log('Dialog opened for flight:', flight.flightNo);
+    }
+  }, [isDragging]);
 
   return (
     <div className="space-y-6">
@@ -523,16 +578,16 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                               <div
                                 key={flight.id}
                                 onMouseDown={(e) => handleMouseDown(e, flight)}
-                                onDoubleClick={() => setSelectedFlight(flight)}
+                                onDoubleClick={(e) => handleDoubleClick(e, flight)}
                                 className={`absolute rounded-md border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:z-20 ${
-                                  isDragging ? 'z-50 opacity-80 scale-105 shadow-xl' : 'hover:scale-105'
+                                 draggedFlightId === flight.id && isDragging ? 'z-50 opacity-80 scale-105 shadow-xl' : 'hover:scale-105'
                                 } ${getStatusColor(flight.status)}`}
                                 style={{
                                   left: `${leftPx}px`,
                                   width: `${widthPx}px`,
                                   top: `${lane * LANE_HEIGHT + 4}px`,
                                   height: `${FLIGHT_HEIGHT}px`,
-                                  pointerEvents: isDragging ? 'none' : 'auto',
+                                  pointerEvents: 'auto'
                                 }}
                                 title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
                               >
@@ -618,9 +673,13 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
         </div>
       )}
 
-      {/* Flight Details Dialog */}
-      <Dialog open={!!selectedFlight} onOpenChange={(open) => !open && setSelectedFlight(null)}>
-        <DialogContent className="bg-background">
+      {/* Flight Details Dialog - simplified open condition */}
+      <Dialog open={!!selectedFlight} onOpenChange={(open) => {
+         if (!open) {
+           setSelectedFlight(null);
+         }
+       }}>
+        <DialogContent className="bg-background max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Plane className="w-5 h-5" />
@@ -629,45 +688,92 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           </DialogHeader>
           {selectedFlight && (
             <div className="space-y-4">
+              {/* Flight Information Grid */}
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-semibold">Registration:</span> {selectedFlight.registration}</div>
-                <div><span className="font-semibold">Date:</span> {selectedFlight.date}</div>
-                <div><span className="font-semibold">STD:</span> {selectedFlight.std}</div>
-                <div><span className="font-semibold">STA:</span> {selectedFlight.sta}</div>
-                <div><span className="font-semibold">ADEP:</span> {selectedFlight.adep}</div>
-                <div><span className="font-semibold">Operator:</span> {selectedFlight.operator}</div>
-                <div><span className="font-semibold">Status:</span> <Badge variant="outline">{selectedFlight.status}</Badge></div>
-                <div><span className="font-semibold">Flight Type:</span> {selectedFlight.flightType}</div>
-                <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
-                <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Registration:</span>
+                  <p className="mt-1">{selectedFlight.registration}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Date:</span>
+                  <p className="mt-1">{selectedFlight.date}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Week:</span>
+                  <p className="mt-1">Week {selectedFlight.weekNumber}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Flight No:</span>
+                  <p className="mt-1">{selectedFlight.flightNo}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">STD:</span>
+                  <p className="mt-1">{selectedFlight.std}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">STA:</span>
+                  <p className="mt-1">{selectedFlight.sta}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Duration:</span>
+                  <p className="mt-1">{calculateDuration(selectedFlight.std, selectedFlight.sta)}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">ADEP:</span>
+                  <p className="mt-1">{selectedFlight.adep}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Operator:</span>
+                  <p className="mt-1">{selectedFlight.operator}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Status:</span>
+                  <p className="mt-1">
+                    <Badge variant="outline" className="capitalize">
+                      {selectedFlight.status}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Flight Type:</span>
+                  <p className="mt-1 capitalize">{selectedFlight.flightType}</p>
+                </div>
+                <div>
+                  <span className="font-semibold text-muted-foreground">Client:</span>
+                  <p className="mt-1">{selectedFlight.clientName}</p>
+                </div>
               </div>
 
-             {/* Open Time Picker Button */}
-             <Button 
-               onClick={() => openTimePicker(selectedFlight)}
-               className="w-full mt-4"
-               variant="outline"
-             >
-               <Clock className="w-4 h-4 mr-2" />
-               Edit Times
-             </Button>
+              {/* Edit Times Button */}
+              <Button 
+                onClick={() => openTimePicker(selectedFlight)}
+                className="w-full mt-4"
+                variant="outline"
+              >
+                <Clock className="w-4 h-4 mr-2" />
+                Edit Times
+              </Button>
               
               {/* Flight Positioning Dropdown */}
               <div className="space-y-2 pt-4 border-t">
-                <Label className="font-semibold">Flight Positioning</Label>
+                <Label htmlFor="positioning" className="font-semibold">Flight Positioning</Label>
                 <Select 
-                  value={selectedFlight.flightPositioning} 
+                  value={selectedFlight.flightPositioning || "live_flight"}
                   onValueChange={async (newValue) => {
                     try {
                       await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue);
-                      setSelectedFlight({ ...selectedFlight, flightPositioning: newValue as 'live_flight' | 'ferry_flight' });
+                      setSelectedFlight({ 
+                        ...selectedFlight, 
+                        flightPositioning: newValue as 'live_flight' | 'ferry_flight' 
+                      });
                       toast.success('Flight positioning updated');
                     } catch (err) {
+                      console.error(err);
                       toast.error('Failed to update positioning');
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="positioning" className="w-full">
                     <SelectValue placeholder="Select positioning" />
                   </SelectTrigger>
                   <SelectContent>
@@ -681,124 +787,101 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
         </DialogContent>
       </Dialog>
 
-     {/* Time Picker Dialog */}
-     <Dialog open={timePickerOpen} onOpenChange={setTimePickerOpen}>
-       <DialogContent className="bg-background max-w-2xl">
-         <DialogHeader>
-           <DialogTitle className="flex items-center gap-2">
-             <Clock className="w-5 h-5" />
-             Edit Flight Times - {timePickerFlight?.flightNo}
-           </DialogTitle>
-         </DialogHeader>
-         {timePickerFlight && (
-           <div className="space-y-6">
-             {/* Time Grid Picker */}
-             <div className="space-y-4">
-               <div>
-                 <Label className="font-semibold mb-2 block">Departure Time (STD)</Label>
-                 <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
-                   {Array.from({ length: 24 }, (_, h) =>
-                     Array.from({ length: 4 }, (_, q) => {
-                       const minutes = h * 60 + q * 15;
-                       const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
-                       const isSelected = pickerStd === time;
-                       return (
-                         <Button
-                           key={time}
-                           onClick={() => setPickerStd(time)}
-                           variant={isSelected ? "default" : "outline"}
-                           size="sm"
-                           className={`text-xs ${isSelected ? 'bg-blue-600 text-white' : ''}`}
-                         >
-                           {time}
-                         </Button>
-                       );
-                     })
-                   ).flat()}
-                 </div>
-               </div>
+      {/* Time Picker Dialog */}
+      <Dialog open={timePickerOpen} onOpenChange={setTimePickerOpen}>
+        <DialogContent className="bg-background max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Edit Flight Times - {timePickerFlight?.flightNo}
+            </DialogTitle>
+          </DialogHeader>
+          {timePickerFlight && (
+            <div className="space-y-6">
+              {/* Time Grid Picker */}
+              <div className="space-y-4">
+                <div>
+                  <Label className="font-semibold mb-2 block">Departure Time (STD)</Label>
+                  <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
+                    {Array.from({ length: 24 }, (_, h) =>
+                      Array.from({ length: 4 }, (_, q) => {
+                        const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
+                        const isSelected = pickerStd === time;
+                        return (
+                          <Button
+                            key={time}
+                            onClick={() => setPickerStd(time)}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs ${isSelected ? 'bg-blue-600 text-white' : ''}`}
+                          >
+                            {time}
+                          </Button>
+                        );
+                      })
+                    ).flat()}
+                  </div>
+                </div>
 
-               <div>
-                 <Label className="font-semibold mb-2 block">Arrival Time (STA)</Label>
-                 <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
-                   {Array.from({ length: 24 }, (_, h) =>
-                     Array.from({ length: 4 }, (_, q) => {
-                       const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
-                       const isSelected = pickerSta === time;
-                       return (
-                         <Button
-                           key={time}
-                           onClick={() => setPickerSta(time)}
-                           variant={isSelected ? "default" : "outline"}
-                           size="sm"
-                           className={`text-xs ${isSelected ? 'bg-green-600 text-white' : ''}`}
-                         >
-                           {time}
-                         </Button>
-                       );
-                     })
-                   ).flat()}
-                 </div>
-               </div>
-             </div>
+                <div>
+                  <Label className="font-semibold mb-2 block">Arrival Time (STA)</Label>
+                  <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
+                    {Array.from({ length: 24 }, (_, h) =>
+                      Array.from({ length: 4 }, (_, q) => {
+                        const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
+                        const isSelected = pickerSta === time;
+                        return (
+                          <Button
+                            key={time}
+                            onClick={() => setPickerSta(time)}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs ${isSelected ? 'bg-green-600 text-white' : ''}`}
+                          >
+                            {time}
+                          </Button>
+                        );
+                      })
+                    ).flat()}
+                  </div>
+                </div>
+              </div>
 
-             {/* Manual input fallback */}
-             <div className="grid grid-cols-2 gap-4 border-t pt-4">
-               <div>
-                 <Label className="text-xs">Or enter time</Label>
-                 <Input
-                   type="time"
-                   value={pickerStd}
-                   onChange={(e) => setPickerStd(e.target.value)}
-                   className="mt-1"
-                 />
-               </div>
-               <div>
-                 <Label className="text-xs">Or enter time</Label>
-                 <Input
-                   type="time"
-                   value={pickerSta}
-                   onChange={(e) => setPickerSta(e.target.value)}
-                   className="mt-1"
-                 />
-               </div>
-             </div>
+              {/* Summary */}
+              <div className="bg-muted/20 p-3 rounded-lg text-sm border">
+                <div><span className="font-semibold">Flight:</span> {timePickerFlight.flightNo}</div>
+                <div><span className="font-semibold">Duration:</span> {calculateDuration(pickerStd, pickerSta)}</div>
+              </div>
 
-             {/* Summary */}
-             <div className="bg-muted/20 p-3 rounded-lg text-sm">
-               <div><span className="font-semibold">Flight:</span> {timePickerFlight.flightNo}</div>
-               <div><span className="font-semibold">Duration:</span> {calculateDuration(pickerStd, pickerSta)}</div>
-             </div>
-
-             {/* Actions */}
-             <div className="flex gap-2 justify-end pt-4 border-t">
-               <Button variant="outline" onClick={() => setTimePickerOpen(false)}>
-                 Cancel
-               </Button>
-               <Button onClick={handleTimePickerSave} className="bg-blue-600 hover:bg-blue-700">
-                 Save Times
-               </Button>
-             </div>
-           </div>
-         )}
-       </DialogContent>
-     </Dialog>
+              {/* Actions */}
+              <div className="flex gap-2 justify-end pt-4 border-t">
+                <Button variant="outline" onClick={() => setTimePickerOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleTimePickerSave} className="bg-blue-600 hover:bg-blue-700">
+                  Save Times
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 // Helper to calculate flight duration
 const calculateDuration = (std: string, sta: string) => {
-   const parseTime = (t: string) => {
-     const [h, m] = t.split(':').map(Number);
-     return h * 60 + m;
-   };
-   const startMin = parseTime(std);
-   const endMin = parseTime(sta);
-   const duration = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
-   const hours = Math.floor(duration / 60);
-   const minutes = duration % 60;
-   return `${hours}h ${minutes}m`;
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const startMin = parseTime(std);
+  const endMin = parseTime(sta);
+  const duration = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+  const hours = Math.floor(duration / 60);
+  const minutes = duration % 60;
+  return `${hours}h ${minutes}m`;
 };
 
 const getStatusColor = (status: string) => {
