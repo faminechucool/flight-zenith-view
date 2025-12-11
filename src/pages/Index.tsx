@@ -273,7 +273,8 @@ const Index = () => {
           <TabsContent value="gantt">
             <GanttView 
               aircraft={filteredAircraft} 
-              onUpdateFlightTimes={updateFlightTimes} 
+              onUpdateFlightTimes={updateFlightTimes}
+              onUpdateAircraft={updateAircraft}
               onNavigateToCreate={() => setActiveTab("create")}
             />
           </TabsContent>

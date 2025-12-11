@@ -63,6 +63,7 @@ export type Database = {
           date: string
           day: string
           flight_no: string
+          flight_positioning: string
           flight_type: string
           id: string
           month_number: number
@@ -86,6 +87,7 @@ export type Database = {
           date: string
           day: string
           flight_no: string
+          flight_positioning?: string
           flight_type: string
           id?: string
           month_number: number
@@ -109,6 +111,7 @@ export type Database = {
           date?: string
           day?: string
           flight_no?: string
+          flight_positioning?: string
           flight_type?: string
           id?: string
           month_number?: number

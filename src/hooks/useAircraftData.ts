@@ -38,7 +38,8 @@ export const useAircraftData = () => {
           status: item.status as 'operational' | 'aog' | 'maintenance' | 'cancelled',
           clientName: item.client_name,
           contractId: item.contract_id,
-          revenue: item.revenue
+          revenue: item.revenue,
+          flightPositioning: (item.flight_positioning as 'live_flight' | 'ferry_flight') || 'live_flight'
         }))
         setAircraft(formattedData)
       }
@@ -49,32 +50,25 @@ export const useAircraftData = () => {
     }
   }
 
-  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' |'weekNumber'|'date', newValue: string, changedBy: string = 'User') => {
+  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning', newValue: string, changedBy: string = 'User') => {
 
     try {
       const currentAircraft = aircraft.find(a => a.id === id)
       if (!currentAircraft) throw new Error('Aircraft not found')
 
-      const oldValue = field === 'registration' 
-        ? currentAircraft.registration 
-        : field === 'flightNo' 
-        ? currentAircraft.flightNo 
-        : field === 'status'
-        ? currentAircraft.status
-        : field === 'flightType'
-        ? currentAircraft.flightType
-        : currentAircraft.day
+      const fieldMap: Record<string, { value: string; dbField: string }> = {
+        registration: { value: currentAircraft.registration, dbField: 'registration' },
+        flightNo: { value: currentAircraft.flightNo, dbField: 'flight_no' },
+        status: { value: currentAircraft.status, dbField: 'status' },
+        flightType: { value: currentAircraft.flightType, dbField: 'flight_type' },
+        weekNumber: { value: String(currentAircraft.weekNumber), dbField: 'week_number' },
+        date: { value: currentAircraft.date, dbField: 'date' },
+        flightPositioning: { value: currentAircraft.flightPositioning, dbField: 'flight_positioning' },
+        day: { value: currentAircraft.day, dbField: 'day' }
+      }
       
-      const fieldName = field === 'registration' 
-        ? 'registration' 
-        : field === 'flightNo' 
-        ? 'flight_no' 
-        : field === 'status'
-        ? 'status'
-        : field === 'flightType'
-        ? 'flight_type'
-        
-        : 'day'
+      const oldValue = fieldMap[field]?.value || ''
+      const fieldName = fieldMap[field]?.dbField || field
 
       // Update aircraft data
       const { error: updateError } = await supabase
