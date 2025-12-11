@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Plane, Clock } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
@@ -28,280 +30,307 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
+  const [dragOverCell, setDragOverCell] = useState<{ registration: string; date: string } | null>(null);
 
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
-  const dragStartRef = useRef<{ x: number; y: number; flightId: string; registration: string } | null>(null);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [timePickerFlight, setTimePickerFlight] = useState<AircraftTableData | null>(null);
+  const [pickerStd, setPickerStd] = useState("00:00");
+  const [pickerSta, setPickerSta] = useState("01:00");
+  
+  const dragStartRef = useRef<{ x: number; flightId: string; registration: string; date: string } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   const TIMELINE_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
   const HOUR_WIDTH = TIMELINE_WIDTH / 24;
 
-  const availableWeeks = useMemo(() => {
-    const weeks = new Set(aircraft.map(a => a.weekNumber));
-    return Array.from(weeks).sort((a, b) => a - b);
-  }, [aircraft]);
-
-  const availableDates = useMemo(() => {
-    const dates = new Set(aircraft.map(a => a.date));
-    return Array.from(dates).sort();
-  }, [aircraft]);
-
-  const filteredDates = useMemo(() => {
-    if (selectedWeek === "all") return availableDates;
-    const weekNum = parseInt(selectedWeek);
-    const datesForWeek = new Set(
-      aircraft.filter(a => a.weekNumber === weekNum).map(a => a.date)
-    );
-    return Array.from(datesForWeek).sort();
-  }, [aircraft, selectedWeek, availableDates]);
-
-  // Group by week and date for header display
-  const weekDateGroups = useMemo(() => {
-    const groups: { week: number; dates: string[] }[] = [];
-    const weekMap = new Map<number, Set<string>>();
-    
+  // Group dates by week
+  const datesByWeek = useMemo(() => {
+    const grouped: { [week: number]: string[] } = {};
     aircraft.forEach(a => {
-      if (!weekMap.has(a.weekNumber)) {
-        weekMap.set(a.weekNumber, new Set());
-      }
-      weekMap.get(a.weekNumber)!.add(a.date);
-    });
-    
-    // Apply filters
-    weekMap.forEach((dates, week) => {
-      if (selectedWeek !== "all" && week !== parseInt(selectedWeek)) return;
-      
-      let filteredDatesArr = Array.from(dates).sort();
-      if (selectedDate !== "all") {
-        filteredDatesArr = filteredDatesArr.filter(d => d === selectedDate);
-      }
-      
-      if (filteredDatesArr.length > 0) {
-        groups.push({ week, dates: filteredDatesArr });
+      if (!grouped[a.weekNumber]) grouped[a.weekNumber] = [];
+      if (!grouped[a.weekNumber].includes(a.date)) {
+        grouped[a.weekNumber].push(a.date);
       }
     });
-    
-    return groups.sort((a, b) => a.week - b.week);
-  }, [aircraft, selectedWeek, selectedDate]);
-
-  // Create unique row keys combining registration + week + date
-  const rowKeys = useMemo(() => {
-    const keys = new Set(aircraft.map(a => `${a.registration}|${a.weekNumber}|${a.date}`));
-    return Array.from(keys).sort((a, b) => {
-      const [regA, weekA, dayA] = a.split('|');
-      const [regB, weekB, dayB] = b.split('|');
-      const regCompare = regA.localeCompare(regB);
-      if (regCompare !== 0) return regCompare;
-      const weekCompare = parseInt(weekA) - parseInt(weekB);
-      if (weekCompare !== 0) return weekCompare;
-      return dayA.localeCompare(dayB);
+    Object.keys(grouped).forEach(week => {
+      grouped[parseInt(week)].sort();
     });
+    return grouped;
   }, [aircraft]);
 
+  // Get unique weeks
+  const availableWeeks = useMemo(() => {
+    return Object.keys(datesByWeek).map(Number).sort((a, b) => a - b);
+  }, [datesByWeek]);
+
+  // Filtered weeks based on selectedWeek
+  const visibleWeeks = useMemo(() => {
+    if (selectedWeek === "all") return availableWeeks;
+    return [parseInt(selectedWeek)];
+  }, [selectedWeek, availableWeeks]);
+
+  // Filtered dates within visible weeks
+  const visibleDates = useMemo(() => {
+    const dates: string[] = [];
+    visibleWeeks.forEach(week => {
+      const weekDates = datesByWeek[week] || [];
+      weekDates.forEach(date => {
+        if (selectedDate === "all" || date === selectedDate) {
+          dates.push(date);
+        }
+      });
+    });
+    return dates;
+  }, [visibleWeeks, datesByWeek, selectedDate]);
+
+  // Filtered aircraft based on visible dates
   const filteredAircraft = useMemo(() => {
-    let filtered = aircraft;
-    
-    if (selectedWeek !== "all") {
-      filtered = filtered.filter(a => a.weekNumber === parseInt(selectedWeek));
-    }
-    
-    if (selectedDate !== "all") {
-      filtered = filtered.filter(a => a.date === selectedDate);
-    }
-    
-    return filtered.sort((a, b) => {
-      const regOrder = a.registration.localeCompare(b.registration);
-      if (regOrder !== 0) return regOrder;
-      return a.std.localeCompare(b.std);
+    return aircraft.filter(a => visibleDates.includes(a.date));
+  }, [aircraft, visibleDates]);
+
+  // Filtered dates for dropdown (all dates from visible weeks)
+  const filteredDates = useMemo(() => {
+    const dates: string[] = [];
+    visibleWeeks.forEach(week => {
+      const weekDates = datesByWeek[week] || [];
+      weekDates.forEach(date => {
+        if (!dates.includes(date)) {
+          dates.push(date);
+        }
+      });
     });
-  }, [aircraft, selectedWeek, selectedDate]);
+    return dates.sort();
+  }, [visibleWeeks, datesByWeek]);
 
-  const timeSlots = Array.from({ length: 24 }, (_, i) => {
-    const hour = i.toString().padStart(2, '0');
-    return `${hour}:00`;
-  });
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "operational":
-        return "bg-green-500/90 border-green-600 text-white";
-      case "aog":
-        return "bg-red-500/90 border-red-600 text-white";
-      case "maintenance":
-        return "bg-yellow-500/90 border-yellow-600 text-white";
-      case "cancelled":
-        return "bg-gray-500/90 border-gray-600 text-white";
-      default:
-        return "bg-blue-500/90 border-blue-600 text-white";
-    }
-  };
-
-  const getFlightTypeColor = (type: string) => {
-    switch (type?.toLowerCase()) {
-      case "charter":
-        return "bg-purple-500";
-      case "schedule":
-        return "bg-blue-500";
-      case "acmi":
-        return "bg-orange-500";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
-  const parseTimeToMinutes = (time: string): number => {
-    const [hours, minutes] = time.split(':').map(Number);
-    return hours * 60 + (minutes || 0);
-  };
-
-  const formatMinutesToTime = (minutes: number): string => {
-    const m = ((minutes % 1440) + 1440) % 1440;
-    const hh = Math.floor(m / 60).toString().padStart(2, '0');
-    const mm = Math.floor(m % 60).toString().padStart(2, '0');
-    return `${hh}:${mm}`;
-  };
-
-  const getFlightPixelPosition = (std: string, sta: string, offsetMinutes = 0) => {
-    const startMin = parseTimeToMinutes(std) + offsetMinutes;
-    const endMin = parseTimeToMinutes(sta) + offsetMinutes;
-
-    const duration = endMin < startMin ? (1440 - startMin) + endMin : endMin - startMin;
-
-    const startPosPx = (startMin % 1440) * (TIMELINE_WIDTH / 1440);
-    const widthPx = Math.max(duration * (TIMELINE_WIDTH / 1440), 30 * timeScale);
-
-    return {
-      left: startPosPx,
-      width: widthPx,
-    };
-  };
-
-  // Group flights by registration
-  const flightsByRegistration = useMemo(() => {
-    const grouped: { [reg: string]: AircraftTableData[] } = {};
+  // Group flights by registration + date
+  const flightsByRegAndDate = useMemo(() => {
+    const grouped: { [key: string]: { flight: AircraftTableData; lane: number }[] } = {};
     
-    filteredAircraft.forEach(flight => {
-      if (!grouped[flight.registration]) {
-        grouped[flight.registration] = [];
-      }
-      grouped[flight.registration].push(flight);
+    const registrations = Array.from(new Set(filteredAircraft.map(f => f.registration))).sort();
+    
+    registrations.forEach(reg => {
+      visibleDates.forEach(date => {
+        const key = `${reg}|${date}`;
+        const flights = filteredAircraft.filter(f => f.registration === reg && f.date === date);
+        
+        if (flights.length === 0) {
+          grouped[key] = [];
+          return;
+        }
+
+        // Sort by STD and assign lanes to avoid overlap
+        const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
+        const laneEndTimes: number[] = [];
+        const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
+
+        sortedFlights.forEach(flight => {
+          const parseTime = (time: string) => {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+          };
+          const startMin = parseTime(flight.std);
+          const endMin = parseTime(flight.sta);
+          const adjustedEnd = endMin < startMin ? endMin + 1440 : endMin;
+
+          let lane = 0;
+          for (let i = 0; i < laneEndTimes.length; i++) {
+            if (laneEndTimes[i] <= startMin) {
+              lane = i;
+              break;
+            }
+            lane = i + 1;
+          }
+          laneEndTimes[lane] = adjustedEnd;
+          flightsWithLanes.push({ flight, lane });
+        });
+
+        grouped[key] = flightsWithLanes;
+      });
     });
-    
+
     return grouped;
+  }, [filteredAircraft, visibleDates]);
+
+  // Get unique registrations
+  const registrations = useMemo(() => {
+    return Array.from(new Set(filteredAircraft.map(f => f.registration))).sort();
   }, [filteredAircraft]);
 
-  const uniqueRegistrations = useMemo(() => {
-    return Object.keys(flightsByRegistration).sort();
-  }, [flightsByRegistration]);
+  // Max lanes per reg+date for row height
+  const maxLanesPerCell = useMemo(() => {
+    const max: { [key: string]: number } = {};
+    Object.keys(flightsByRegAndDate).forEach(key => {
+      const flights = flightsByRegAndDate[key];
+      max[key] = flights.length > 0 ? Math.max(...flights.map(f => f.lane)) + 1 : 1;
+    });
+    return max;
+  }, [flightsByRegAndDate]);
 
-  // Calculate total header width
-  const totalDatesCount = weekDateGroups.reduce((sum, g) => sum + g.dates.length, 0);
-  const totalTimelineWidth = totalDatesCount * TIMELINE_WIDTH;
+  // Make day column width responsive to zoom
+  const DAY_COL_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
+  // const HOUR_WIDTH = DAY_COL_WIDTH / 24; // Removed duplicate declaration
 
-  // Drag handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent, flightId: string, registration: string) => {
+  // Handle drag start
+  const handleMouseDown = useCallback((e: React.MouseEvent, flight: AircraftTableData) => {
     e.preventDefault();
     e.stopPropagation();
-    dragStartRef.current = { x: e.clientX, y: e.clientY, flightId, registration };
-    setDraggedFlightId(flightId);
+    dragStartRef.current = { 
+      x: e.clientX, 
+      flightId: flight.id,
+      registration: flight.registration,
+      date: flight.date
+    };
+    setDraggedFlightId(flight.id);
     setDragOffset(0);
+    setDragOverCell(null);
   }, []);
 
+  // Handle drag move
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
-    const minutesDelta = Math.round(deltaX / timeScale);
-    setDragOffset(minutesDelta);
-  }, [timeScale]);
+    const snappedMinutes = Math.round(deltaX / (HOUR_WIDTH / 60));
+    setDragOffset(snappedMinutes);
 
+    // Detect which cell is under cursor
+    const element = document.elementFromPoint(e.clientX, e.clientY);
+    const cellDiv = element?.closest('[data-cell-key]') as HTMLElement;
+    if (cellDiv) {
+      const cellKey = cellDiv.dataset.cellKey;
+      if (cellKey) {
+        const [registration, date] = cellKey.split('|');
+        setDragOverCell({ registration, date });
+      }
+    }
+  }, [HOUR_WIDTH]);
+
+  // Handle drag end
   const handleMouseUp = useCallback(async () => {
-    if (!dragStartRef.current || dragOffset === 0) {
+    if (!dragStartRef.current || !draggedFlightId) {
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
+      setDragOverCell(null);
       return;
     }
 
-    const flightId = dragStartRef.current.flightId;
-    const flight = aircraft.find(f => f.id === flightId);
-    
+    const flight = aircraft.find(f => f.id === draggedFlightId);
     if (!flight) {
       dragStartRef.current = null;
       setDraggedFlightId(null);
       setDragOffset(0);
+      setDragOverCell(null);
       return;
     }
 
-    const origStart = parseTimeToMinutes(flight.std);
-    const origEnd = parseTimeToMinutes(flight.sta);
-    const duration = origEnd < origStart ? (origEnd + 1440 - origStart) : (origEnd - origStart);
-    
-    const newStartMinutes = origStart + dragOffset;
-    const newStd = formatMinutesToTime(newStartMinutes);
-    const newSta = formatMinutesToTime(newStartMinutes + duration);
+    const originalDate = dragStartRef.current.date;
+    const targetCell = dragOverCell;
 
-    setPendingUpdates(prev => ({ ...prev, [flightId]: { std: newStd, sta: newSta } }));
-    
+    // Check if dropped in a different registration
+    if (targetCell && targetCell.registration !== flight.registration) {
+      toast.error('Cannot move flight to a different registration');
+      dragStartRef.current = null;
+      setDraggedFlightId(null);
+      setDragOffset(0);
+      setDragOverCell(null);
+      return;
+    }
+
+    // Calculate new time
+    const parseTime = (time: string) => {
+      const [h, m] = time.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const originalStartMin = parseTime(flight.std);
+    const originalEndMin = parseTime(flight.sta);
+    const duration = originalEndMin < originalStartMin 
+      ? originalEndMin + 1440 - originalStartMin 
+      : originalEndMin - originalStartMin;
+
+    const newStartMin = originalStartMin + dragOffset;
+    const normalizedStartMin = ((newStartMin % 1440) + 1440) % 1440;
+    const normalizedEndMin = (normalizedStartMin + duration) % 1440;
+
+    const formatTime = (minutes: number) => {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const newStd = formatTime(normalizedStartMin);
+    const newSta = formatTime(normalizedEndMin);
+
+    // Determine target date
+    const newDate = targetCell?.date || originalDate;
+
+    // Optimistic update
+    setPendingUpdates(prev => ({ 
+      ...prev, 
+      [draggedFlightId]: { std: newStd, sta: newSta } 
+    }));
+
     dragStartRef.current = null;
     setDraggedFlightId(null);
     setDragOffset(0);
+    setDragOverCell(null);
 
     try {
-      await onUpdateFlightTimes(flightId, newStd, newSta);
-      toast.success(`Moved ${flight.flightNo} to ${newStd} - ${newSta}`);
+      // Update time
+      await onUpdateFlightTimes(draggedFlightId, newStd, newSta);
+      
+      // Update date if changed
+      if (newDate !== originalDate) {
+        await onUpdateAircraft(draggedFlightId, 'date', newDate);
+        toast.success(`Moved ${flight.flightNo} to ${newDate} at ${newStd}-${newSta}`);
+      } else {
+        toast.success(`Updated ${flight.flightNo} to ${newStd}-${newSta}`);
+      }
     } catch (err) {
-      toast.error('Failed to update flight time');
+      toast.error('Failed to update flight');
     } finally {
       setPendingUpdates(prev => {
         const updated = { ...prev };
-        delete updated[flightId];
+        delete updated[draggedFlightId];
         return updated;
       });
     }
-  }, [dragOffset, aircraft, onUpdateFlightTimes]);
+  }, [draggedFlightId, dragOffset, dragOverCell, aircraft, onUpdateFlightTimes, onUpdateAircraft, HOUR_WIDTH]);
 
+  // Open time picker
+  const openTimePicker = (flight: AircraftTableData) => {
+    setTimePickerFlight(flight);
+    setPickerStd(flight.std);
+    setPickerSta(flight.sta);
+    setTimePickerOpen(true);
+  };
+
+  // Handle time picker save
+  const handleTimePickerSave = async () => {
+    if (!timePickerFlight) return;
+    
+    try {
+      await onUpdateFlightTimes(timePickerFlight.id, pickerStd, pickerSta);
+      toast.success(`Updated ${timePickerFlight.flightNo} to ${pickerStd}-${pickerSta}`);
+      setTimePickerOpen(false);
+      setTimePickerFlight(null);
+    } catch (err) {
+      toast.error('Failed to update flight times');
+    }
+  };
+
+  // Add/remove mouse listeners
   useEffect(() => {
     if (draggedFlightId) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
       return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
       };
     }
   }, [draggedFlightId, handleMouseMove, handleMouseUp]);
-
-  const handlePositioningChange = async (newValue: string) => {
-    if (!selectedFlight) return;
-    try {
-      await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue);
-      setSelectedFlight({ ...selectedFlight, flightPositioning: newValue as 'live_flight' | 'ferry_flight' });
-      toast.success('Flight positioning updated');
-    } catch (err) {
-      toast.error('Failed to update flight positioning');
-    }
-  };
-
-  // Get flight position including date offset
-  const getFlightPositionWithDateOffset = (flight: AircraftTableData, offsetMinutes = 0) => {
-    let dateOffset = 0;
-    
-    for (const group of weekDateGroups) {
-      for (const date of group.dates) {
-        if (group.week === flight.weekNumber && date === flight.date) {
-          const position = getFlightPixelPosition(flight.std, flight.sta, offsetMinutes);
-          return {
-            left: dateOffset + position.left,
-            width: position.width,
-          };
-        }
-        dateOffset += TIMELINE_WIDTH;
-      }
-    }
-    
-    return { left: 0, width: 0 };
-  };
 
   return (
     <div className="space-y-6">
@@ -339,6 +368,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                   Week {week}
                 </SelectItem>
               ))}
+
             </SelectContent>
           </Select>
           
@@ -358,166 +388,178 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
         </div>
       </div>
 
-      <div className="rounded-md border overflow-auto bg-background">
-        {/* Column headers - 3 rows: Week, Date, Time */}
+      <div className="rounded-md border overflow-x-auto bg-background">
+        {/* Header */}
         <div className="sticky top-0 z-20 bg-background border-b">
-          {/* Week Row */}
+          {/* Week row */}
           <div className="flex border-b">
-            <div 
-              className="flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30"
-              style={{ width: `${REG_COL_WIDTH}px` }}
-            >
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 sticky left-0 z-30 p-2 text-xs font-semibold">
+              Week
+            </div>
+            {visibleWeeks.map(week => {
+              const weekDates = (datesByWeek[week] || []).filter(d => selectedDate === "all" || d === selectedDate);
+              if (weekDates.length === 0) return null;
+              const weekWidth = weekDates.length * DAY_COL_WIDTH;
+              return (
+                <div
+                  key={week}
+                  className="border-r bg-blue-50 p-3 text-center font-bold text-base"
+                  style={{ minWidth: `${weekWidth}px` }}
+                >
+                  Week {week}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Date + Time row */}
+          <div className="flex">
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-0 z-30 text-xs">
               Registration
             </div>
-            {weekDateGroups.map((group) => (
-              <div
-                key={`week-${group.week}`}
-                className="border-r p-2 text-center text-xs font-bold bg-primary/10 text-primary"
-                style={{ width: `${group.dates.length * TIMELINE_WIDTH}px` }}
-              >
-                Week {group.week}
-              </div>
-            ))}
-          </div>
-          
-          {/* Date Row */}
-          <div className="flex border-b">
-            <div 
-              className="flex-shrink-0 border-r bg-muted/50 p-1 sticky left-0 z-30"
-              style={{ width: `${REG_COL_WIDTH}px` }}
-            />
-            {weekDateGroups.map((group) => (
-              group.dates.map((date) => (
-                <div
-                  key={`date-${group.week}-${date}`}
-                  className="border-r p-2 text-center text-xs font-semibold bg-muted/30"
-                  style={{ width: `${TIMELINE_WIDTH}px` }}
-                >
+            {visibleDates.map(date => (
+              <div key={date} className="border-r" style={{ minWidth: `${DAY_COL_WIDTH}px` }}>
+                {/* Date label - make it prominent */}
+                <div className="border-b bg-blue-100 p-3 text-center text-base font-bold">
                   {date}
                 </div>
-              ))
-            ))}
-          </div>
-          
-          {/* Time Row */}
-          <div className="flex">
-            <div 
-              className="flex-shrink-0 border-r bg-muted/50 p-1 sticky left-0 z-30"
-              style={{ width: `${REG_COL_WIDTH}px` }}
-            />
-            {weekDateGroups.map((group) => (
-              group.dates.map((date) => (
-                <div key={`time-${group.week}-${date}`} className="flex">
-                  {timeSlots.map((time) => (
+                {/* Time slots */}
+                <div className="flex">
+                  {Array.from({ length: 24 }, (_, h) => (
                     <div
-                      key={`${group.week}-${date}-${time}`}
-                      className="border-r p-1 text-center text-[10px] font-medium bg-muted/50 text-muted-foreground"
-                      style={{ width: `${HOUR_WIDTH}px`, minWidth: `${HOUR_WIDTH}px` }}
+                      key={h}
+                      className="border-r p-2 text-center text-[11px] font-medium bg-muted/50"
+                      style={{ minWidth: `${HOUR_WIDTH}px` }}
                     >
-                      {time}
+                      {String(h).padStart(2, '0')}:00
                     </div>
                   ))}
                 </div>
-              ))
+              </div>
             ))}
           </div>
         </div>
 
-        {/* Timeline rows by registration */}
-        <div className="min-h-[400px]" ref={timelineRef}>
-          {uniqueRegistrations.map((registration) => {
-            const flights = flightsByRegistration[registration] || [];
-            
-            return (
-              <div
-                key={registration}
-                className="flex border-b hover:bg-muted/20 transition-colors"
-              >
-                {/* Registration label */}
-                <div 
-                  className="flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background"
-                  style={{ width: `${REG_COL_WIDTH}px` }}
-                >
-                  <div className="font-semibold text-sm">{registration}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {flights.length} flights
-                  </div>
-                </div>
+        {/* Rows */}
+        <div className="min-h-[500px]" ref={timelineRef}>
+          {registrations.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Plane className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No flights for selected filters</p>
+            </div>
+          ) : (
+            registrations.map(registration => {
+              const maxLanes = Math.max(
+                ...visibleDates.map(date => maxLanesPerCell[`${registration}|${date}`] || 1)
+              );
+              const rowHeight = Math.max(maxLanes * LANE_HEIGHT + 16, 60);
 
-                {/* Timeline grid */}
-                <div 
-                  className="relative"
-                  style={{ 
-                    width: `${totalTimelineWidth}px`,
-                    minHeight: '48px'
-                  }}
-                >
-                  {/* Background grid */}
-                  <div className="absolute inset-0 flex">
-                    {weekDateGroups.map((group) => (
-                      group.dates.map((date) => (
-                        <div key={`grid-${group.week}-${date}`} className="flex">
-                          {timeSlots.map((time, idx) => (
-                            <div 
-                              key={`${group.week}-${date}-${time}`} 
-                              className={`border-r h-full ${idx % 6 === 0 ? 'bg-muted/10' : ''}`}
-                              style={{ width: `${HOUR_WIDTH}px`, minWidth: `${HOUR_WIDTH}px` }}
+              return (
+                <div key={registration} className="flex border-b hover:bg-muted/20">
+                  {/* Registration label */}
+                  <div
+                    className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background flex items-center justify-center"
+                    style={{ minHeight: `${rowHeight}px` }}
+                  >
+                    <div className="text-center">
+                      <div className="font-bold text-base">{registration}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {filteredAircraft.filter(f => f.registration === registration).length} flights
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Day columns */}
+                  {visibleDates.map(date => {
+                    const cellKey = `${registration}|${date}`;
+                    const flights = flightsByRegAndDate[cellKey] || [];
+                    const isDropTarget = dragOverCell?.registration === registration && dragOverCell?.date === date;
+
+                    return (
+                      <div
+                        key={date}
+                        data-cell-key={cellKey}
+                        className={`relative border-r transition-colors ${
+                          isDropTarget ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
+                        }`}
+                        style={{ minWidth: `${DAY_COL_WIDTH}px`, minHeight: `${rowHeight}px` }}
+                      >
+                        {/* Hour grid */}
+                        <div className="absolute inset-0 flex pointer-events-none">
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <div
+                              key={h}
+                              className={`border-r ${h % 6 === 0 ? 'border-gray-300' : 'border-gray-100'}`}
+                              style={{ minWidth: `${HOUR_WIDTH}px` }}
                             />
                           ))}
                         </div>
-                      ))
-                    ))}
-                  </div>
 
-                  {/* Flight bars */}
-                  <div className="absolute inset-0 py-2 px-1">
-                    {flights.map((flight, idx) => {
-                      const isDragging = draggedFlightId === flight.id;
-                      const pendingUpdate = pendingUpdates[flight.id];
-                      
-                      const displayStd = pendingUpdate ? pendingUpdate.std : flight.std;
-                      const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
-                      
-                      const offset = isDragging ? dragOffset : 0;
-                      const position = getFlightPositionWithDateOffset(
-                        { ...flight, std: displayStd, sta: displaySta },
-                        offset
-                      );
-                      
-                      if (position.width === 0) return null;
-                      
-                      return (
-                        <div
-                          key={flight.id}
-                          onMouseDown={(e) => handleMouseDown(e, flight.id, flight.registration)}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSelectedFlight(flight);
-                          }}
-                          className={`absolute rounded-md border-2 cursor-grab active:cursor-grabbing transition-shadow hover:shadow-lg hover:z-10 ${getStatusColor(flight.status)} ${isDragging ? 'z-50 shadow-xl' : ''}`}
-                          style={{
-                            left: `${position.left}px`,
-                            width: `${position.width}px`,
-                            top: `${idx * (FLIGHT_HEIGHT + 4) + 4}px`,
-                            height: `${FLIGHT_HEIGHT}px`,
-                            userSelect: 'none',
-                          }}
-                          title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
-                        >
-                          <div className="flex items-center gap-1 px-1 h-full overflow-hidden">
-                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(flight.flightType)}`} />
-                            <span className="text-[10px] font-bold truncate">{flight.flightNo}</span>
-                            <span className="text-[9px] truncate opacity-90">{flight.adep}</span>
-                          </div>
+                        {/* Flights */}
+                        <div className="relative w-full h-full p-1">
+                          {flights.map(({ flight, lane }) => {
+                            const isDragging = draggedFlightId === flight.id;
+                            const pendingUpdate = pendingUpdates[flight.id];
+                            
+                            // Use pending update times if available
+                            const displayStd = pendingUpdate ? pendingUpdate.std : flight.std;
+                            const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
+                            
+                            const parseTime = (t: string) => {
+                              const [h, m] = t.split(':').map(Number);
+                              return h * 60 + m;
+                            };
+                            const startMin = parseTime(displayStd);
+                            const endMin = parseTime(displaySta);
+                            const durationMin = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+
+                            const offset = isDragging ? dragOffset : 0;
+                            const adjustedStartMin = startMin + offset;
+                            const normalizedStart = ((adjustedStartMin % 1440) + 1440) % 1440;
+                            const leftPx = (normalizedStart / (24 * 60)) * DAY_COL_WIDTH;
+                            const widthPx = Math.max((durationMin / (24 * 60)) * DAY_COL_WIDTH, 40);
+
+                            return (
+                              <div
+                                key={flight.id}
+                                onMouseDown={(e) => handleMouseDown(e, flight)}
+                                onDoubleClick={() => setSelectedFlight(flight)}
+                                className={`absolute rounded-md border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:z-20 ${
+                                  isDragging ? 'z-50 opacity-80 scale-105 shadow-xl' : 'hover:scale-105'
+                                } ${getStatusColor(flight.status)}`}
+                                style={{
+                                  left: `${leftPx}px`,
+                                  width: `${widthPx}px`,
+                                  top: `${lane * LANE_HEIGHT + 4}px`,
+                                  height: `${FLIGHT_HEIGHT}px`,
+                                  pointerEvents: isDragging ? 'none' : 'auto',
+                                }}
+                                title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
+                              >
+                                <div className="flex items-center gap-1 px-2 h-full overflow-hidden">
+                                  <div
+                                    className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(
+                                      flight.flightType
+                                    )}`}
+                                  />
+                                  <span className="text-[11px] font-bold truncate">
+                                    {flight.flightNo}
+                                  </span>
+                                  <span className="text-[10px] truncate opacity-90">
+                                    {flight.adep}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -599,13 +641,31 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 <div><span className="font-semibold">Client:</span> {selectedFlight.clientName}</div>
                 <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
               </div>
+
+             {/* Open Time Picker Button */}
+             <Button 
+               onClick={() => openTimePicker(selectedFlight)}
+               className="w-full mt-4"
+               variant="outline"
+             >
+               <Clock className="w-4 h-4 mr-2" />
+               Edit Times
+             </Button>
               
               {/* Flight Positioning Dropdown */}
               <div className="space-y-2 pt-4 border-t">
                 <Label className="font-semibold">Flight Positioning</Label>
                 <Select 
                   value={selectedFlight.flightPositioning} 
-                  onValueChange={handlePositioningChange}
+                  onValueChange={async (newValue) => {
+                    try {
+                      await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue);
+                      setSelectedFlight({ ...selectedFlight, flightPositioning: newValue as 'live_flight' | 'ferry_flight' });
+                      toast.success('Flight positioning updated');
+                    } catch (err) {
+                      toast.error('Failed to update positioning');
+                    }
+                  }}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select positioning" />
@@ -620,6 +680,152 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           )}
         </DialogContent>
       </Dialog>
+
+     {/* Time Picker Dialog */}
+     <Dialog open={timePickerOpen} onOpenChange={setTimePickerOpen}>
+       <DialogContent className="bg-background max-w-2xl">
+         <DialogHeader>
+           <DialogTitle className="flex items-center gap-2">
+             <Clock className="w-5 h-5" />
+             Edit Flight Times - {timePickerFlight?.flightNo}
+           </DialogTitle>
+         </DialogHeader>
+         {timePickerFlight && (
+           <div className="space-y-6">
+             {/* Time Grid Picker */}
+             <div className="space-y-4">
+               <div>
+                 <Label className="font-semibold mb-2 block">Departure Time (STD)</Label>
+                 <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
+                   {Array.from({ length: 24 }, (_, h) =>
+                     Array.from({ length: 4 }, (_, q) => {
+                       const minutes = h * 60 + q * 15;
+                       const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
+                       const isSelected = pickerStd === time;
+                       return (
+                         <Button
+                           key={time}
+                           onClick={() => setPickerStd(time)}
+                           variant={isSelected ? "default" : "outline"}
+                           size="sm"
+                           className={`text-xs ${isSelected ? 'bg-blue-600 text-white' : ''}`}
+                         >
+                           {time}
+                         </Button>
+                       );
+                     })
+                   ).flat()}
+                 </div>
+               </div>
+
+               <div>
+                 <Label className="font-semibold mb-2 block">Arrival Time (STA)</Label>
+                 <div className="grid grid-cols-6 gap-2 p-4 bg-muted/30 rounded-lg max-h-[300px] overflow-y-auto">
+                   {Array.from({ length: 24 }, (_, h) =>
+                     Array.from({ length: 4 }, (_, q) => {
+                       const time = `${String(h).padStart(2, '0')}:${String(q * 15).padStart(2, '0')}`;
+                       const isSelected = pickerSta === time;
+                       return (
+                         <Button
+                           key={time}
+                           onClick={() => setPickerSta(time)}
+                           variant={isSelected ? "default" : "outline"}
+                           size="sm"
+                           className={`text-xs ${isSelected ? 'bg-green-600 text-white' : ''}`}
+                         >
+                           {time}
+                         </Button>
+                       );
+                     })
+                   ).flat()}
+                 </div>
+               </div>
+             </div>
+
+             {/* Manual input fallback */}
+             <div className="grid grid-cols-2 gap-4 border-t pt-4">
+               <div>
+                 <Label className="text-xs">Or enter time</Label>
+                 <Input
+                   type="time"
+                   value={pickerStd}
+                   onChange={(e) => setPickerStd(e.target.value)}
+                   className="mt-1"
+                 />
+               </div>
+               <div>
+                 <Label className="text-xs">Or enter time</Label>
+                 <Input
+                   type="time"
+                   value={pickerSta}
+                   onChange={(e) => setPickerSta(e.target.value)}
+                   className="mt-1"
+                 />
+               </div>
+             </div>
+
+             {/* Summary */}
+             <div className="bg-muted/20 p-3 rounded-lg text-sm">
+               <div><span className="font-semibold">Flight:</span> {timePickerFlight.flightNo}</div>
+               <div><span className="font-semibold">Duration:</span> {calculateDuration(pickerStd, pickerSta)}</div>
+             </div>
+
+             {/* Actions */}
+             <div className="flex gap-2 justify-end pt-4 border-t">
+               <Button variant="outline" onClick={() => setTimePickerOpen(false)}>
+                 Cancel
+               </Button>
+               <Button onClick={handleTimePickerSave} className="bg-blue-600 hover:bg-blue-700">
+                 Save Times
+               </Button>
+             </div>
+           </div>
+         )}
+       </DialogContent>
+     </Dialog>
     </div>
   );
 };
+
+// Helper to calculate flight duration
+const calculateDuration = (std: string, sta: string) => {
+   const parseTime = (t: string) => {
+     const [h, m] = t.split(':').map(Number);
+     return h * 60 + m;
+   };
+   const startMin = parseTime(std);
+   const endMin = parseTime(sta);
+   const duration = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+   const hours = Math.floor(duration / 60);
+   const minutes = duration % 60;
+   return `${hours}h ${minutes}m`;
+};
+
+const getStatusColor = (status: string) => {
+  switch (status?.toLowerCase()) {
+    case "operational":
+      return "bg-green-500/90 border-green-600 text-white";
+    case "aog":
+      return "bg-red-500/90 border-red-600 text-white";
+    case "maintenance":
+      return "bg-yellow-500/90 border-yellow-600 text-white";
+    case "cancelled":
+      return "bg-gray-500/90 border-gray-600 text-white";
+    default:
+      return "bg-blue-500/90 border-blue-600 text-white";
+  }
+};
+
+const getFlightTypeColor = (type: string) => {
+  switch (type?.toLowerCase()) {
+    case "charter":
+      return "bg-purple-500";
+    case "schedule":
+      return "bg-blue-500";
+    case "acmi":
+      return "bg-orange-500";
+    default:
+      return "bg-gray-500";
+  }
+};
+
