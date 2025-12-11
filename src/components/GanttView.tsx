@@ -1,38 +1,42 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { AircraftTableData } from "@/data/mockData";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Plane, Edit, ExternalLink } from "lucide-react";
-import { set } from "date-fns";
+import { Plane, Clock } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
   onUpdateFlightTimes: (id: string, newStd: string, newSta: string) => Promise<unknown>;
+  onUpdateAircraft: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning', newValue: string) => Promise<unknown>;
   onNavigateToCreate?: () => void;
 }
 
-const TIMELINE_WIDTH = 1440; // 1440px = 1px per minute
+const BASE_TIMELINE_WIDTH = 1440;
 const FLIGHT_HEIGHT = 24;
 const LANE_HEIGHT = 32;
 
-export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }: GanttViewProps) => {
+export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onNavigateToCreate }: GanttViewProps) => {
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
+  const [timeScale, setTimeScale] = useState<number>(1); // 0.5 to 2 scale factor
   
   // Local state for optimistic UI updates during drag
   const [draggedFlightId, setDraggedFlightId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<number>(0);
-  const [dragOffsetY, setDragOffsetY] = useState<number>(0); // vertical: rows/days
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0);
 
   // Store committed offsets for flights that are being saved
   const [pendingUpdates, setPendingUpdates] = useState<Record<string, { std: string; sta: string }>>({});
-  const dragStartRef = useRef<{ x: number; y:number;flightId: string } | null>(null);
+  const dragStartRef = useRef<{ x: number; y: number; flightId: string; registration: string } | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
+
+  const TIMELINE_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
 
   const availableWeeks = useMemo(() => {
     const weeks = new Set(aircraft.map(a => a.weekNumber));
@@ -44,22 +48,17 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return Array.from(dates).sort();
   }, [aircraft]);
 
-  // Get unique days for each week
-  const daysByWeek = useMemo(() => {
-    const grouped: { [week: number]: string[] } = {};
-    aircraft.forEach(a => {
-      if (!grouped[a.weekNumber]) grouped[a.weekNumber] = [];
-      if (!grouped[a.weekNumber].includes(a.date)) {
-        grouped[a.weekNumber].push(a.date);
-      }
-    });
-    Object.keys(grouped).forEach(week => {
-      grouped[parseInt(week)].sort();
-    });
-    return grouped;
-  }, [aircraft]);
+  // Get filtered dates based on selected week
+  const filteredDates = useMemo(() => {
+    if (selectedWeek === "all") return availableDates;
+    const weekNum = parseInt(selectedWeek);
+    const datesForWeek = new Set(
+      aircraft.filter(a => a.weekNumber === weekNum).map(a => a.date)
+    );
+    return Array.from(datesForWeek).sort();
+  }, [aircraft, selectedWeek, availableDates]);
 
-  // Create unique row keys combining registration + week
+  // Create unique row keys combining registration + week + date
   const rowKeys = useMemo(() => {
     const keys = new Set(aircraft.map(a => `${a.registration}|${a.weekNumber}|${a.date}`));
     return Array.from(keys).sort((a, b) => {
@@ -124,6 +123,10 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     }
   };
 
+  const getPositioningLabel = (positioning: string) => {
+    return positioning === 'ferry_flight' ? 'Ferry Flight (Empty)' : 'Live Flight (With Cargo)';
+  };
+
   const parseTimeToMinutes = (time: string): number => {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + (minutes || 0);
@@ -136,28 +139,20 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return `${hh}:${mm}`;
   };
 
-  const getFlightPixelPosition = (std, sta, offsetMinutes = 0, weekNum) => {
-  const startMin = parseTimeToMinutes(std) + offsetMinutes;
-  const endMin = parseTimeToMinutes(sta) + offsetMinutes;
+  const getFlightPixelPosition = (std: string, sta: string, offsetMinutes = 0) => {
+    const startMin = parseTimeToMinutes(std) + offsetMinutes;
+    const endMin = parseTimeToMinutes(sta) + offsetMinutes;
 
-  // duration handling (cross midnight)
-  const duration = endMin < startMin ? (1440 - startMin) + endMin : endMin - startMin;
+    const duration = endMin < startMin ? (1440 - startMin) + endMin : endMin - startMin;
 
-  // Calculate weekly shift
-  const weekIndex = availableWeeks.indexOf(weekNum);
-  const weekOffsetPx = weekIndex * TIMELINE_WIDTH; // SHIFT BY WEEK
+    const startPosPx = (startMin % 1440) * (TIMELINE_WIDTH / 1440);
+    const widthPx = Math.max(duration * (TIMELINE_WIDTH / 1440), 30 * timeScale);
 
-  // Pixel conversion
-  const startPosPx = (startMin % 1440) * (TIMELINE_WIDTH / 1440);
-  const widthPx = Math.max(duration * (TIMELINE_WIDTH / 1440), 30); // minimum width
-
-  return {
-    left: weekOffsetPx + startPosPx,
-    width: widthPx,
+    return {
+      left: startPosPx,
+      width: widthPx,
+    };
   };
-};
-
-
 
   // Group flights by registration + week + day
   const flightsByRow = useMemo(() => {
@@ -206,33 +201,29 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     return maxLanes;
   }, [flightsByRow, rowKeys]);
 
-  // Get week number for a flight
-  const getFlightWeek = (flight: AircraftTableData) => {
-    return `W${flight.weekNumber}`;
-  };
-
   // Drag handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent, flightId: string) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, flightId: string, registration: string) => {
     e.preventDefault();
     e.stopPropagation();
-    dragStartRef.current = { x: e.clientX,y:e.clientY,flightId };
+    dragStartRef.current = { x: e.clientX, y: e.clientY, flightId, registration };
     setDraggedFlightId(flightId);
     setDragOffset(0);
     setDragOffsetY(0);
-      }, []);
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
     const deltaY = e.clientY - dragStartRef.current.y;
-    // Snap to 1-minute increments (1px = 1 minute)
-    const snappedMinutes = Math.round(deltaX);
-     const snappedRows = Math.round(deltaY / LANE_HEIGHT);
-    setDragOffset(snappedMinutes);
-    setDragOffsetY(snappedRows);
     
-  }, []);
+    // Convert pixel movement to minutes based on scale
+    const minutesDelta = Math.round(deltaX / timeScale);
+    const rowsDelta = Math.round(deltaY / LANE_HEIGHT);
+    
+    setDragOffset(minutesDelta);
+    setDragOffsetY(rowsDelta);
+  }, [timeScale]);
 
   const handleMouseUp = useCallback(async () => {
     if (!dragStartRef.current || dragOffset === 0) {
@@ -276,14 +267,13 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     } catch (err) {
       toast.error('Failed to update flight time');
     } finally {
-      // Clear pending update after data refreshes
       setPendingUpdates(prev => {
         const updated = { ...prev };
         delete updated[flightId];
         return updated;
       });
     }
-  }, [dragOffset,dragOffsetY,aircraft, onUpdateFlightTimes,daysByWeek]);
+  }, [dragOffset, aircraft, onUpdateFlightTimes]);
 
   useEffect(() => {
     if (draggedFlightId) {
@@ -296,6 +286,27 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
     }
   }, [draggedFlightId, handleMouseMove, handleMouseUp]);
 
+  const handlePositioningChange = async (newValue: string) => {
+    if (!selectedFlight) return;
+    try {
+      await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue);
+      setSelectedFlight({ ...selectedFlight, flightPositioning: newValue as 'live_flight' | 'ferry_flight' });
+      toast.success('Flight positioning updated');
+    } catch (err) {
+      toast.error('Failed to update flight positioning');
+    }
+  };
+
+  // Get filtered row keys based on selections
+  const filteredRowKeys = useMemo(() => {
+    return rowKeys.filter(rowKey => {
+      const [, weekNum, date] = rowKey.split('|');
+      if (selectedWeek !== "all" && parseInt(weekNum) !== parseInt(selectedWeek)) return false;
+      if (selectedDate !== "all" && date !== selectedDate) return false;
+      return true;
+    });
+  }, [rowKeys, selectedWeek, selectedDate]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4 bg-muted/10 rounded-md">
@@ -303,8 +314,26 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
           <Plane className="w-6 h-6" />
           Aviation Timeline
         </h2>
-        <div className="flex gap-3">
-          <Select value={selectedWeek} onValueChange={setSelectedWeek}>
+        <div className="flex gap-3 items-center">
+          {/* Time Scale Slider */}
+          <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-md">
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <Label className="text-xs text-muted-foreground">Zoom:</Label>
+            <Slider
+              value={[timeScale]}
+              onValueChange={([value]) => setTimeScale(value)}
+              min={0.5}
+              max={2}
+              step={0.1}
+              className="w-24"
+            />
+            <span className="text-xs text-muted-foreground w-8">{timeScale.toFixed(1)}x</span>
+          </div>
+          
+          <Select value={selectedWeek} onValueChange={(val) => {
+            setSelectedWeek(val);
+            setSelectedDate("all");
+          }}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Select week" />
             </SelectTrigger>
@@ -324,7 +353,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Dates</SelectItem>
-              {availableDates.map((date) => (
+              {filteredDates.map((date) => (
                 <SelectItem key={date} value={date}>
                   {date}
                 </SelectItem>
@@ -338,54 +367,39 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
         {/* Column headers */}
         <div className="sticky top-0 z-20 bg-background border-b">
           <div className="flex">
-            
-            {/* Day label */}
-           
-            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[0px] z-30">
+            {/* Week label */}
+            <div className="w-[60px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-0 z-30">
+              Week
+            </div>
+            {/* Date label */}
+            <div className="w-[80px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold text-xs sticky left-[60px] z-30">
               Date
             </div>
-            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[60px] z-30">
+            {/* Registration label */}
+            <div className="w-[100px] flex-shrink-0 border-r bg-muted/50 p-2 text-center font-semibold sticky left-[140px] z-30">
               Registration
             </div>
-            {/* Timeline with Weeks row */}
-<div className="flex flex-col">
-  {/* Weeks Row */}
-  <div className="flex">
-    {availableWeeks.map((week, index) => (
-      <div
-        key={week}
-        className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
-        style={{ width: `${TIMELINE_WIDTH}px` }}  // <-- One full day (1440px)
-      >
-        Week {week}
-      </div>
-    ))}
-  </div>
-
-  {/* Time Row repeated for each week */}
-  <div className="flex">
-    {availableWeeks.map((week) =>
-      timeSlots.map((time) => (
-        <div
-          key={week + time}
-          className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
-          style={{ width: `${TIMELINE_WIDTH / 24}px` }}
-        >
-          {time}
+            {/* Time headers */}
+            <div className="flex">
+              {timeSlots.map((time) => (
+                <div
+                  key={time}
+                  className="border-r p-2 text-center text-xs font-semibold bg-muted/50"
+                  style={{ width: `${TIMELINE_WIDTH / 24}px` }}
+                >
+                  {time}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      ))
-    )}
-  </div>
-</div>
-</div> </div>
 
-        {/* Timeline rows - grouped by registration + week + day */}
+        {/* Timeline rows */}
         <div className="min-h-[500px]" ref={timelineRef}>
-          {rowKeys.map((rowKey) => {
+          {filteredRowKeys.map((rowKey) => {
             const [registration, weekNum, date] = rowKey.split('|');
             const flights = flightsByRow[rowKey] || [];
             
-            // Skip rows with no flights after filtering
             if (flights.length === 0) return null;
             
             return (
@@ -393,23 +407,22 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 key={rowKey}
                 className="flex border-b hover:bg-muted/20 transition-colors"
               >
-                {/* Week label 
+                {/* Week label */}
                 <div className="w-[60px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-0 z-10 bg-background flex items-center justify-center">
                   <span className="text-xs font-medium text-muted-foreground">
                     W{weekNum}
                   </span>
                 </div>
-                */}
                 
-                {/* Day label */}
-                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[0px] z-10 bg-background flex items-center justify-center">
+                {/* Date label */}
+                <div className="w-[80px] flex-shrink-0 border-r bg-muted/10 p-2 sticky left-[60px] z-10 bg-background flex items-center justify-center">
                   <span className="text-xs font-medium text-muted-foreground">
                     {date}
                   </span>
                 </div>
                 
                 {/* Registration label */}
-                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[60px] z-10 bg-background">
+                <div className="w-[100px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-[140px] z-10 bg-background">
                   <div className="font-semibold text-sm">{registration}</div>
                   <div className="text-xs text-muted-foreground">
                     {flights.length} flights
@@ -441,17 +454,16 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                       const isDragging = draggedFlightId === flight.id;
                       const pendingUpdate = pendingUpdates[flight.id];
                       
-                      // Use pending update times if available, otherwise use flight data
                       const displayStd = pendingUpdate ? pendingUpdate.std : flight.std;
                       const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
                       
                       const offset = isDragging ? dragOffset : 0;
-                      const position = getFlightPixelPosition(displayStd, displaySta, offset,flight.weekNumber);
+                      const position = getFlightPixelPosition(displayStd, displaySta, offset);
                       
                       return (
                         <div
                           key={flight.id}
-                          onMouseDown={(e) => handleMouseDown(e, flight.id)}
+                          onMouseDown={(e) => handleMouseDown(e, flight.id, flight.registration)}
                           onDoubleClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -461,7 +473,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                           style={{
                             left: `${position.left}px`,
                             width: `${position.width}px`,
-                            top: `${(lane + (draggedFlightId === flight.id ? dragOffsetY : 0)) * LANE_HEIGHT + 4}px`,
+                            top: `${lane * LANE_HEIGHT + 4}px`,
                             height: `${FLIGHT_HEIGHT}px`,
                             userSelect: 'none',
                           }}
@@ -518,6 +530,18 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
           <div className="w-8 h-3 rounded bg-gray-500" />
           <span className="text-xs">Cancelled</span>
         </div>
+        
+        <div className="w-px h-6 bg-border mx-2" />
+        
+        <div className="text-sm font-semibold">Positioning:</div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">Live</Badge>
+          <span className="text-xs">With Cargo</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-xs">Ferry</Badge>
+          <span className="text-xs">Empty</span>
+        </div>
       </div>
 
       {filteredAircraft.length === 0 && (
@@ -550,6 +574,22 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onNavigateToCreate }:
                 <div><span className="font-semibold">Week:</span> {selectedFlight.weekNumber}</div>
               </div>
               
+              {/* Flight Positioning Dropdown */}
+              <div className="space-y-2 pt-4 border-t">
+                <Label className="font-semibold">Flight Positioning</Label>
+                <Select 
+                  value={selectedFlight.flightPositioning} 
+                  onValueChange={handlePositioningChange}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select positioning" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="live_flight">Live Flight (With Cargo)</SelectItem>
+                    <SelectItem value="ferry_flight">Ferry Flight (Empty/Positioning)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
         </DialogContent>
