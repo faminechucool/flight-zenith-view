@@ -656,14 +656,14 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
         
         <div className="w-px h-6 bg-border mx-2" />
         
-        <div className="text-sm font-semibold">Positioning:</div>
+        <div className="text-sm font-semibold">Flight Positioning:</div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">Live</Badge>
           <span className="text-xs">With Cargo</span>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-xs">Ferry</Badge>
-          <span className="text-xs">Empty</span>
+          <span className="text-xs">Empty/Positioning</span>
         </div>
       </div>
 

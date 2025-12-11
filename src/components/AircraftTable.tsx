@@ -14,7 +14,7 @@ import { ActivityLogDialog } from "@/components/ActivityLogDialog";
 
 interface AircraftTableProps {
   aircraft: AircraftTableData[];
-  onUpdate?: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType'|'weekNumber'|'date', newValue: string) => Promise<{ success: boolean; error?: string }>;
+  onUpdate?: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType'|'weekNumber'|'date'|'flightPositioning', newValue: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 
@@ -46,10 +46,9 @@ const getFlightTypeColor = (type: string) => {
   }
 };
 
-const formatCapacity = (used: number, total: number) => {
-  const percentage = total > 0 ? Math.round((used / total) * 100) : 0;
-  return `${used}/${total} (${percentage}%)`;
-};
+function formatCapacity(used: number, total: number): string {
+  return `${used} / ${total}`;
+}
 
 export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
   const statusOptions = [
@@ -65,12 +64,18 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
     { value: "acmi", label: "ACMI" },
   ];
 
-  const handleUpdate = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber'|'date', newValue: string) => {
+  const flightPositioningOptions = [
+    { value: "live_flight", label: "Live Flight (With Cargo)" },
+    { value: "ferry_flight", label: "Ferry Flight (Empty/Positioning)" },
+  ];
+
+  const handleUpdate = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber'|'date'|'flightPositioning', newValue: string) => {
     if (onUpdate) {
       return await onUpdate(id, field, newValue);
     }
     return { success: false, error: 'Update function not provided' };
   };
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="rounded-md border bg-card min-w-[1200px]">
@@ -88,6 +93,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
               <TableHead className="w-[80px] py-2">STA</TableHead>
               <TableHead className="w-[140px] py-2">Operator</TableHead>
               <TableHead className="w-[100px] py-2">Type</TableHead>
+              <TableHead className="w-[200px] py-2">Positioning</TableHead>
               <TableHead className="w-[90px] py-2">Capacity</TableHead>
               <TableHead className="w-[120px] py-2">Used</TableHead>
               <TableHead className="w-[100px] py-2">Available</TableHead>
@@ -107,12 +113,12 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                     onSave={(newValue) => handleUpdate(aircraft.id, 'registration', newValue)}
                   />
                 </TableCell>
-              <TableCell className="py-2">
-                <EditableCell
-                  value={aircraft.flightNo}
-                  onSave={(newValue) => handleUpdate(aircraft.id, 'flightNo', newValue)}
-                />
-              </TableCell>
+                <TableCell className="py-2">
+                  <EditableCell
+                    value={aircraft.flightNo}
+                    onSave={(newValue) => handleUpdate(aircraft.id, 'flightNo', newValue)}
+                  />
+                </TableCell>
                 <TableCell className="text-sm py-2">{aircraft.day}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.date}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.std}</TableCell>
@@ -126,6 +132,13 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                     onSave={(newValue) => handleUpdate(aircraft.id, 'flightType', newValue)}
                   />
                 </TableCell>
+                <TableCell className="py-2">
+                  <EditableSelectCell
+                    value={aircraft.flightPositioning || "live_flight"}
+                    options={flightPositioningOptions}
+                    onSave={(newValue) => handleUpdate(aircraft.id, 'flightPositioning', newValue)}
+                  />
+                </TableCell>
                 <TableCell className="text-center py-2">{aircraft.totalCapacity}</TableCell>
                 <TableCell className="text-sm py-2">{formatCapacity(aircraft.capacityUsed, aircraft.totalCapacity)}</TableCell>
                 <TableCell className="text-center py-2">{aircraft.capacityAvailable}</TableCell>
@@ -136,10 +149,10 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                     onSave={(newValue) => handleUpdate(aircraft.id, 'status', newValue)}
                   />
                 </TableCell>
-              <TableCell className="text-sm py-2">{aircraft.clientName}</TableCell>
-              <TableCell className="py-2">
-                <ActivityLogDialog aircraftId={aircraft.id} registration={aircraft.registration} />
-              </TableCell>
+                <TableCell className="text-sm py-2">{aircraft.clientName}</TableCell>
+                <TableCell className="py-2">
+                  <ActivityLogDialog aircraftId={aircraft.id} registration={aircraft.registration} />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
