@@ -24,7 +24,7 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
   const totalFlights = aircraft.length;
   const operationalFlights = aircraft.filter(a => a.status === "operational").length;
   const aogFlights = aircraft.filter(a => a.status === "aog").length;
-  
+  const maintenanceFlights = aircraft.filter(a => a.status === "maintenance").length;
   // Calculate total block hours
   const totalBlockHours = aircraft.reduce((sum, a) => {
     if (a.status === 'cancelled' || a.status === 'aog') return sum;
@@ -60,14 +60,14 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
       title: "Block Hours",
       value: totalBlockHours.toFixed(1),
       icon: Clock,
-      description: "Flight + 1hr per flight",
+      description: "block hours",
       color: "text-aviation-secondary"
     },
     {
-      title: "Capacity Utilization",
-      value: "N/A",
+      title: "Maintenance hours",
+      value: maintenanceFlights,
       icon: TrendingUp,
-      description: "Average seat usage",
+      description: "maintenance hours",
       color: "text-aviation-accent"
     }
   ];
