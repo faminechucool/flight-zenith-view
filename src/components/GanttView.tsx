@@ -5,30 +5,47 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Plane } from "lucide-react";
+import { Clock, Plane, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { ColorSettingsDialog } from "@/components/ColorSettingsDialog";
+import { ChangeReasonDialog } from "@/components/ChangeReasonDialog";
+import { useColorSettings, ColorSettings } from "@/hooks/useColorSettings";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
-  onUpdateFlightTimes: (id: string, newStd: string, newSta: string) => Promise<unknown>;
-  onUpdateAircraft: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning', newValue: string) => Promise<unknown>;
+  onUpdateFlightTimes: (id: string, newStd: string, newSta: string, changedBy?: string, reason?: string) => Promise<unknown>;
+  onUpdateAircraft: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning' | 'ades' | 'adep', newValue: string, changedBy?: string, reason?: string) => Promise<unknown>;
+  onDeleteAircraft?: (id: string, changedBy?: string, reason?: string) => Promise<unknown>;
   onNavigateToCreate?: () => void;
 }
 
 const BASE_TIMELINE_WIDTH = 1440;
 const FLIGHT_HEIGHT = 24;
 const LANE_HEIGHT = 32;
-const REG_COL_WIDTH = 120;
-const DRAG_THRESHOLD = 5; // pixels before drag starts
+const DRAG_THRESHOLD = 5;
 
-export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onNavigateToCreate }: GanttViewProps) => {
+export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onDeleteAircraft, onNavigateToCreate }: GanttViewProps) => {
+  const { colors, updateColor, resetColors } = useColorSettings();
+  
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [selectedFlight, setSelectedFlight] = useState<AircraftTableData | null>(null);
@@ -44,6 +61,20 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   const [timePickerFlight, setTimePickerFlight] = useState<AircraftTableData | null>(null);
   const [pickerStd, setPickerStd] = useState("00:00");
   const [pickerSta, setPickerSta] = useState("01:00");
+  
+  // Change reason dialog state
+  const [changeReasonOpen, setChangeReasonOpen] = useState(false);
+  const [pendingChange, setPendingChange] = useState<{
+    flightId: string;
+    flightNo: string;
+    changeDescription: string;
+    action: (reason: string) => Promise<void>;
+  } | null>(null);
+  
+  // Delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [flightToDelete, setFlightToDelete] = useState<AircraftTableData | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   
   const dragStartRef = useRef<{ 
     x: number; 
@@ -103,7 +134,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     return aircraft.filter(a => visibleDates.includes(a.date));
   }, [aircraft, visibleDates]);
 
-  // Filtered dates for dropdown (all dates from visible weeks)
+  // Filtered dates for dropdown
   const filteredDates = useMemo(() => {
     const dates: string[] = [];
     visibleWeeks.forEach(week => {
@@ -133,7 +164,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           return;
         }
 
-        // Sort by STD and assign lanes to avoid overlap
         const sortedFlights = [...flights].sort((a, b) => a.std.localeCompare(b.std));
         const laneEndTimes: number[] = [];
         const flightsWithLanes: { flight: AircraftTableData; lane: number }[] = [];
@@ -181,9 +211,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     return max;
   }, [flightsByRegAndDate]);
 
-  // Make day column width responsive to zoom
   const DAY_COL_WIDTH = BASE_TIMELINE_WIDTH * timeScale;
-  // const HOUR_WIDTH = DAY_COL_WIDTH / 24; // Removed duplicate declaration
 
   // Handle drag start
   const handleMouseDown = useCallback((e: React.MouseEvent, flight: AircraftTableData) => {
@@ -209,20 +237,17 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     const dx = Math.abs(e.clientX - dragStartRef.current.x);
     const dy = Math.abs(e.clientY - dragStartRef.current.y);
     
-    // Only start dragging after threshold
     if (!dragStartRef.current.dragging && (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD)) {
       dragStartRef.current.dragging = true;
       setIsDragging(true);
     }
     
-    // Don't update position until drag threshold is crossed
     if (!dragStartRef.current.dragging) return;
     
     const deltaX = e.clientX - dragStartRef.current.x;
     const snappedMinutes = Math.round(deltaX / (HOUR_WIDTH / 60));
     setDragOffset(snappedMinutes);
 
-    // Detect which cell is under cursor
     const element = document.elementFromPoint(e.clientX, e.clientY);
     const cellDiv = element?.closest('[data-cell-key]') as HTMLElement;
     if (cellDiv) {
@@ -256,7 +281,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       return;
     }
 
-    // If wasn't actually dragging (just a click), let double-click handler take over
     if (!wasDragging) {
       dragStartRef.current = null;
       setDraggedFlightId(null);
@@ -267,18 +291,8 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
     }
 
     const originalDate = dragStartRef.current.date;
+    const originalRegistration = dragStartRef.current.registration;
     const targetCell = dragOverCell;
-
-    // Check if dropped in a different registration
-    if (targetCell && targetCell.registration !== flight.registration) {
-      toast.error('Cannot move flight to a different registration');
-      dragStartRef.current = null;
-      setDraggedFlightId(null);
-      setDragOffset(0);
-      setDragOverCell(null);
-      setIsDragging(false);
-      return;
-    }
 
     // Calculate new time
     const parseTime = (time: string) => {
@@ -303,43 +317,65 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
 
     const newStd = formatTime(normalizedStartMin);
     const newSta = formatTime(normalizedEndMin);
-
-    // Determine target date
     const newDate = targetCell?.date || originalDate;
+    const newRegistration = targetCell?.registration || originalRegistration;
 
-    // Optimistic update
-    setPendingUpdates(prev => ({ 
-      ...prev, 
-      [draggedFlightId]: { std: newStd, sta: newSta } 
-    }));
+    // Build change description
+    const changes: string[] = [];
+    if (newStd !== flight.std || newSta !== flight.sta) {
+      changes.push(`Time: ${flight.std}-${flight.sta} → ${newStd}-${newSta}`);
+    }
+    if (newDate !== originalDate) {
+      changes.push(`Date: ${originalDate} → ${newDate}`);
+    }
+    if (newRegistration !== originalRegistration) {
+      changes.push(`Registration: ${originalRegistration} → ${newRegistration}`);
+    }
 
+    const flightId = draggedFlightId;
+    
     dragStartRef.current = null;
     setDraggedFlightId(null);
     setDragOffset(0);
     setDragOverCell(null);
     setIsDragging(false);
 
-    try {
-      // Update time
-      await onUpdateFlightTimes(draggedFlightId, newStd, newSta);
-      
-      // Update date if changed
-      if (newDate !== originalDate) {
-        await onUpdateAircraft(draggedFlightId, 'date', newDate);
-        toast.success(`Moved ${flight.flightNo} to ${newDate} at ${newStd}-${newSta}`);
-      } else {
-        toast.success(`Updated ${flight.flightNo} to ${newStd}-${newSta}`);
+    if (changes.length === 0) return;
+
+    // Show change reason dialog
+    setPendingChange({
+      flightId,
+      flightNo: flight.flightNo,
+      changeDescription: changes.join(', '),
+      action: async (reason: string) => {
+        setPendingUpdates(prev => ({ 
+          ...prev, 
+          [flightId]: { std: newStd, sta: newSta } 
+        }));
+
+        try {
+          await onUpdateFlightTimes(flightId, newStd, newSta, 'User', reason);
+          
+          if (newDate !== originalDate) {
+            await onUpdateAircraft(flightId, 'date', newDate, 'User', reason);
+          }
+          if (newRegistration !== originalRegistration) {
+            await onUpdateAircraft(flightId, 'registration', newRegistration, 'User', reason);
+          }
+          toast.success(`Updated ${flight.flightNo}`);
+        } catch (err) {
+          toast.error('Failed to update flight');
+        } finally {
+          setPendingUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[flightId];
+            return updated;
+          });
+        }
       }
-    } catch (err) {
-      toast.error('Failed to update flight');
-    } finally {
-      setPendingUpdates(prev => {
-        const updated = { ...prev };
-        delete updated[draggedFlightId];
-        return updated;
-      });
-    }
-  }, [draggedFlightId, dragOffset, dragOverCell, aircraft, onUpdateFlightTimes, onUpdateAircraft, HOUR_WIDTH]);
+    });
+    setChangeReasonOpen(true);
+  }, [draggedFlightId, dragOffset, dragOverCell, aircraft, onUpdateFlightTimes, onUpdateAircraft]);
 
   // Open time picker
   const openTimePicker = (flight: AircraftTableData) => {
@@ -353,14 +389,48 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   const handleTimePickerSave = async () => {
     if (!timePickerFlight) return;
     
+    const flight = timePickerFlight;
+    const changeDescription = `Time: ${flight.std}-${flight.sta} → ${pickerStd}-${pickerSta}`;
+    
+    setPendingChange({
+      flightId: flight.id,
+      flightNo: flight.flightNo,
+      changeDescription,
+      action: async (reason: string) => {
+        try {
+          await onUpdateFlightTimes(flight.id, pickerStd, pickerSta, 'User', reason);
+          toast.success(`Updated ${flight.flightNo} to ${pickerStd}-${pickerSta}`);
+          setTimePickerOpen(false);
+          setTimePickerFlight(null);
+        } catch (err) {
+          console.error(err);
+          toast.error('Failed to update flight times');
+        }
+      }
+    });
+    setChangeReasonOpen(true);
+  };
+
+  // Handle delete
+  const handleDeleteClick = (flight: AircraftTableData) => {
+    setFlightToDelete(flight);
+    setDeleteReason("");
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!flightToDelete || !onDeleteAircraft) return;
+    
     try {
-      await onUpdateFlightTimes(timePickerFlight.id, pickerStd, pickerSta);
-      toast.success(`Updated ${timePickerFlight.flightNo} to ${pickerStd}-${pickerSta}`);
-      setTimePickerOpen(false);
-      setTimePickerFlight(null);
+      await onDeleteAircraft(flightToDelete.id, 'User', deleteReason);
+      toast.success(`Deleted ${flightToDelete.flightNo}`);
+      setSelectedFlight(null);
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to update flight times');
+      toast.error('Failed to delete flight');
+    } finally {
+      setDeleteDialogOpen(false);
+      setFlightToDelete(null);
+      setDeleteReason("");
     }
   };
 
@@ -380,12 +450,32 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
   const handleDoubleClick = useCallback((e: React.MouseEvent, flight: AircraftTableData) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only open if not dragging
     if (!isDragging) {
       setSelectedFlight(flight);
-      console.log('Dialog opened for flight:', flight.flightNo);
     }
   }, [isDragging]);
+
+  // Get status color from settings
+  const getStatusStyle = (status: string) => {
+    const color = colors.statuses[status as keyof typeof colors.statuses] || '#6b7280';
+    return { backgroundColor: color };
+  };
+
+  // Get flight type color from settings
+  const getFlightTypeStyle = (flightType: string) => {
+    const color = colors.flightTypes[flightType as keyof typeof colors.flightTypes] || '#3b82f6';
+    return { backgroundColor: color };
+  };
+
+  // Get positioning style
+  const getPositioningStyle = (positioning: string) => {
+    const isFerry = positioning === 'ferry_flight';
+    const color = colors.positioning[positioning as keyof typeof colors.positioning] || '#3b82f6';
+    return {
+      borderStyle: isFerry ? 'dashed' : 'solid',
+      borderColor: color,
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -394,7 +484,13 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           <Plane className="w-6 h-6" />
           Aviation Timeline
         </h2>
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
+          <ColorSettingsDialog 
+            colors={colors} 
+            onUpdateColor={updateColor} 
+            onReset={resetColors} 
+          />
+          
           <div className="flex items-center gap-2 px-3 py-1 bg-muted/30 rounded-md">
             <Clock className="w-4 h-4 text-muted-foreground" />
             <Label className="text-xs text-muted-foreground">Zoom:</Label>
@@ -423,7 +519,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                   Week {week}
                 </SelectItem>
               ))}
-
             </SelectContent>
           </Select>
           
@@ -474,11 +569,9 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
             </div>
             {visibleDates.map(date => (
               <div key={date} className="border-r" style={{ minWidth: `${DAY_COL_WIDTH}px` }}>
-                {/* Date label - make it prominent */}
                 <div className="border-b bg-blue-100 p-3 text-center text-base font-bold">
                   {date}
                 </div>
-                {/* Time slots */}
                 <div className="flex">
                   {Array.from({ length: 24 }, (_, h) => (
                     <div
@@ -511,7 +604,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
 
               return (
                 <div key={registration} className="flex border-b hover:bg-muted/20">
-                  {/* Registration label */}
                   <div
                     className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background flex items-center justify-center"
                     style={{ minHeight: `${rowHeight}px` }}
@@ -524,7 +616,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                     </div>
                   </div>
 
-                  {/* Day columns */}
                   {visibleDates.map(date => {
                     const cellKey = `${registration}|${date}`;
                     const flights = flightsByRegAndDate[cellKey] || [];
@@ -539,7 +630,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                         }`}
                         style={{ minWidth: `${DAY_COL_WIDTH}px`, minHeight: `${rowHeight}px` }}
                       >
-                        {/* Hour grid */}
                         <div className="absolute inset-0 flex pointer-events-none">
                           {Array.from({ length: 24 }, (_, h) => (
                             <div
@@ -550,13 +640,11 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                           ))}
                         </div>
 
-                        {/* Flights */}
                         <div className="relative w-full h-full p-1">
                           {flights.map(({ flight, lane }) => {
-                            const isDragging = draggedFlightId === flight.id;
+                            const isDraggedFlight = draggedFlightId === flight.id;
                             const pendingUpdate = pendingUpdates[flight.id];
                             
-                            // Use pending update times if available
                             const displayStd = pendingUpdate ? pendingUpdate.std : flight.std;
                             const displaySta = pendingUpdate ? pendingUpdate.sta : flight.sta;
                             
@@ -568,11 +656,15 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                             const endMin = parseTime(displaySta);
                             const durationMin = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
 
-                            const offset = isDragging ? dragOffset : 0;
+                            const offset = isDraggedFlight ? dragOffset : 0;
                             const adjustedStartMin = startMin + offset;
                             const normalizedStart = ((adjustedStartMin % 1440) + 1440) % 1440;
                             const leftPx = (normalizedStart / (24 * 60)) * DAY_COL_WIDTH;
                             const widthPx = Math.max((durationMin / (24 * 60)) * DAY_COL_WIDTH, 40);
+
+                            const statusStyle = getStatusStyle(flight.status);
+                            const flightTypeStyle = getFlightTypeStyle(flight.flightType);
+                            const positioningStyle = getPositioningStyle(flight.flightPositioning);
 
                             return (
                               <div
@@ -581,27 +673,32 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                                 onDoubleClick={(e) => handleDoubleClick(e, flight)}
                                 className={`absolute rounded-md border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:z-20 ${
                                  draggedFlightId === flight.id && isDragging ? 'z-50 opacity-80 scale-105 shadow-xl' : 'hover:scale-105'
-                                } ${getStatusColor(flight.status)}`}
+                                }`}
                                 style={{
                                   left: `${leftPx}px`,
                                   width: `${widthPx}px`,
                                   top: `${lane * LANE_HEIGHT + 4}px`,
                                   height: `${FLIGHT_HEIGHT}px`,
-                                  pointerEvents: 'auto'
+                                  pointerEvents: 'auto',
+                                  ...statusStyle,
+                                  ...positioningStyle,
                                 }}
+<<<<<<< HEAD
                                 title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} |${flight.adep}`}
+=======
+                                title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}-${flight.ades || '?'}`}
+>>>>>>> 743ae4df350028dde301b7d38db0da25e4fad0c6
                               >
                                 <div className="flex items-center gap-1 px-2 h-full overflow-hidden">
                                   <div
-                                    className={`w-2 h-2 rounded-full flex-shrink-0 ${getFlightTypeColor(
-                                      flight.flightType
-                                    )}`}
+                                    className="w-2 h-2 rounded-full flex-shrink-0"
+                                    style={flightTypeStyle}
                                   />
-                                  <span className="text-[11px] font-bold truncate">
+                                  <span className="text-[11px] font-bold truncate text-white drop-shadow-sm">
                                     {flight.flightNo}
                                   </span>
-                                  <span className="text-[10px] truncate opacity-90">
-                                    {flight.adep}
+                                  <span className="text-[10px] truncate text-white/90">
+                                    {flight.adep}{flight.ades ? `-${flight.ades}` : ''}
                                   </span>
                                 </div>
                               </div>
@@ -621,49 +718,33 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
       {/* Legend */}
       <div className="flex flex-wrap gap-4 items-center justify-center p-4 bg-muted/20 rounded-lg">
         <div className="text-sm font-semibold">Flight Types:</div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-purple-500" />
-          <span className="text-xs">Charter</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500" />
-          <span className="text-xs">Schedule</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-orange-500" />
-          <span className="text-xs">ACMI</span>
-        </div>
+        {Object.entries(colors.flightTypes).map(([key, color]) => (
+          <div key={key} className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
+            <span className="text-xs capitalize">{key}</span>
+          </div>
+        ))}
         
         <div className="w-px h-6 bg-border mx-2" />
         
         <div className="text-sm font-semibold">Status:</div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded bg-green-500" />
-          <span className="text-xs">Operational</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded bg-red-500" />
-          <span className="text-xs">AOG</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded bg-yellow-500" />
-          <span className="text-xs">Maintenance</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-3 rounded bg-gray-500" />
-          <span className="text-xs">Cancelled</span>
-        </div>
+        {Object.entries(colors.statuses).map(([key, color]) => (
+          <div key={key} className="flex items-center gap-2">
+            <div className="w-8 h-3 rounded" style={{ backgroundColor: color }} />
+            <span className="text-xs capitalize">{key === 'aog' ? 'AOG' : key}</span>
+          </div>
+        ))}
         
         <div className="w-px h-6 bg-border mx-2" />
         
-        <div className="text-sm font-semibold">Flight Positioning:</div>
+        <div className="text-sm font-semibold">Positioning:</div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">Live</Badge>
-          <span className="text-xs">With Cargo</span>
+          <div className="w-8 h-3 rounded border-2 border-solid" style={{ borderColor: colors.positioning.live_flight, backgroundColor: colors.positioning.live_flight + '40' }} />
+          <span className="text-xs">Live (Solid)</span>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-xs">Ferry</Badge>
-          <span className="text-xs">Empty/Positioning</span>
+          <div className="w-8 h-3 rounded border-2 border-dashed" style={{ borderColor: colors.positioning.ferry_flight, backgroundColor: colors.positioning.ferry_flight + '40' }} />
+          <span className="text-xs">Ferry (Dashed)</span>
         </div>
       </div>
 
@@ -673,11 +754,9 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
         </div>
       )}
 
-      {/* Flight Details Dialog - simplified open condition */}
+      {/* Flight Details Dialog */}
       <Dialog open={!!selectedFlight} onOpenChange={(open) => {
-         if (!open) {
-           setSelectedFlight(null);
-         }
+         if (!open) setSelectedFlight(null);
        }}>
         <DialogContent className="bg-background max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -688,7 +767,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           </DialogHeader>
           {selectedFlight && (
             <div className="space-y-4">
-              {/* Flight Information Grid */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="font-semibold text-muted-foreground">Registration:</span>
@@ -723,6 +801,10 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                   <p className="mt-1">{selectedFlight.adep}</p>
                 </div>
                 <div>
+                  <span className="font-semibold text-muted-foreground">ADES:</span>
+                  <p className="mt-1">{selectedFlight.ades || '-'}</p>
+                </div>
+                <div>
                   <span className="font-semibold text-muted-foreground">Operator:</span>
                   <p className="mt-1">{selectedFlight.operator}</p>
                 </div>
@@ -744,7 +826,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 </div>
               </div>
 
-              {/* Edit Times Button */}
               <Button 
                 onClick={() => openTimePicker(selectedFlight)}
                 className="w-full mt-4"
@@ -788,7 +869,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 </Button>
               </div>
               
-              {/* Flight Positioning Dropdown */}
               <div className="space-y-2 pt-4 border-t">
                 <Label htmlFor="positioning" className="font-semibold">
                   Flight Positioning
@@ -796,17 +876,26 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 <Select 
                   value={selectedFlight.flightPositioning || "live_flight"}
                   onValueChange={async (newValue) => {
-                    try {
-                      await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue);
-                      setSelectedFlight({ 
-                        ...selectedFlight, 
-                        flightPositioning: newValue as 'live_flight' | 'ferry_flight' 
-                      });
-                      toast.success('Flight positioning updated');
-                    } catch (err) {
-                      console.error(err);
-                      toast.error('Failed to update positioning');
-                    }
+                    const changeDesc = `Positioning: ${selectedFlight.flightPositioning} → ${newValue}`;
+                    setPendingChange({
+                      flightId: selectedFlight.id,
+                      flightNo: selectedFlight.flightNo,
+                      changeDescription: changeDesc,
+                      action: async (reason: string) => {
+                        try {
+                          await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue, 'User', reason);
+                          setSelectedFlight({ 
+                            ...selectedFlight, 
+                            flightPositioning: newValue as 'live_flight' | 'ferry_flight' 
+                          });
+                          toast.success('Flight positioning updated');
+                        } catch (err) {
+                          console.error(err);
+                          toast.error('Failed to update positioning');
+                        }
+                      }
+                    });
+                    setChangeReasonOpen(true);
                   }}
                 >
                   <SelectTrigger id="positioning" className="w-full">
@@ -818,6 +907,19 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                   </SelectContent>
                 </Select>
               </div>
+
+              {onDeleteAircraft && (
+                <div className="pt-4 border-t">
+                  <Button 
+                    variant="destructive" 
+                    className="w-full"
+                    onClick={() => handleDeleteClick(selectedFlight)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Flight
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -834,7 +936,6 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           </DialogHeader>
           {timePickerFlight && (
             <div className="space-y-6">
-              {/* Time Grid Picker */}
               <div className="space-y-4">
                 <div>
                   <Label className="font-semibold mb-2 block">Departure Time (STD)</Label>
@@ -883,13 +984,11 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                 </div>
               </div>
 
-              {/* Summary */}
               <div className="bg-muted/20 p-3 rounded-lg text-sm border">
                 <div><span className="font-semibold">Flight:</span> {timePickerFlight.flightNo}</div>
                 <div><span className="font-semibold">Duration:</span> {calculateDuration(pickerStd, pickerSta)}</div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2 justify-end pt-4 border-t">
                 <Button variant="outline" onClick={() => setTimePickerOpen(false)}>
                   Cancel
@@ -902,6 +1001,53 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Change Reason Dialog */}
+      <ChangeReasonDialog
+        open={changeReasonOpen}
+        onOpenChange={setChangeReasonOpen}
+        flightNo={pendingChange?.flightNo || ''}
+        changeDescription={pendingChange?.changeDescription || ''}
+        onConfirm={async (reason) => {
+          if (pendingChange) {
+            await pendingChange.action(reason);
+          }
+          setChangeReasonOpen(false);
+          setPendingChange(null);
+        }}
+        onCancel={() => {
+          setChangeReasonOpen(false);
+          setPendingChange(null);
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Flight</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete flight {flightToDelete?.flightNo}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="delete-reason">Reason for deletion (optional)</Label>
+            <Textarea
+              id="delete-reason"
+              placeholder="Enter reason..."
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              className="mt-2"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -914,37 +1060,8 @@ const calculateDuration = (std: string, sta: string) => {
   };
   const startMin = parseTime(std);
   const endMin = parseTime(sta);
-  const duration = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
-  const hours = Math.floor(duration / 60);
-  const minutes = duration % 60;
-  return `${hours}h ${minutes}m`;
+  const durationMin = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+  const hours = Math.floor(durationMin / 60);
+  const mins = durationMin % 60;
+  return `${hours}h ${mins}m`;
 };
-
-const getStatusColor = (status: string) => {
-  switch (status?.toLowerCase()) {
-    case "operational":
-      return "bg-green-500/90 border-green-600 text-white";
-    case "aog":
-      return "bg-red-500/90 border-red-600 text-white";
-    case "maintenance":
-      return "bg-yellow-500/90 border-yellow-600 text-white";
-    case "cancelled":
-      return "bg-gray-500/90 border-gray-600 text-white";
-    default:
-      return "bg-blue-500/90 border-blue-600 text-white";
-  }
-};
-
-const getFlightTypeColor = (type: string) => {
-  switch (type?.toLowerCase()) {
-    case "charter":
-      return "bg-purple-500";
-    case "schedule":
-      return "bg-blue-500";
-    case "acmi":
-      return "bg-orange-500";
-    default:
-      return "bg-gray-500";
-  }
-};
-

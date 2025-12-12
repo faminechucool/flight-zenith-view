@@ -31,10 +31,10 @@ const flightSchema = z.object({
   date: z.date({ required_error: "Date is required" }),
   std: z.string().trim().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   adep: z.string().trim().min(3, "ADEP must be 3-4 characters").max(4, "ADEP must be 3-4 characters"),
+  ades: z.string().trim().min(3, "ADES must be 3-4 characters").max(4, "ADES must be 3-4 characters"),
   sta: z.string().trim().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   operator: z.string().trim().min(1, "Operator is required").max(50, "Max 50 characters"),
   flightType: z.enum(["charter", "schedule", "acmi"], { required_error: "Flight type is required" }),
-  totalCapacity: z.number().min(1, "Must be at least 1").max(1000, "Max 1000"),
   capacityUsed: z.number().min(0, "Must be at least 0").max(1000, "Max 1000"),
   status: z.enum(["operational", "aog", "maintenance", "cancelled"], { required_error: "Status is required" }),
   clientName: z.string().trim().min(1, "Client name is required").max(100, "Max 100 characters"),
@@ -64,10 +64,10 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
       flightNo: "",
       std: "",
       adep: "",
+      ades: "",
       sta: "",
       operator: "",
       flightType: "schedule",
-      totalCapacity: 180,
       capacityUsed: 0,
       status: "operational",
       clientName: "",
@@ -106,6 +106,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
   const generateFlights = (baseData: FlightFormData, type: "day" | "week" | "month") => {
     const flights = [];
     const baseDate = baseData.date;
+    const defaultCapacity = 180; // Default total capacity
     
     if (type === "day") {
       flights.push({
@@ -114,7 +115,8 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         date: format(baseDate, "dd/MM"),
         weekNumber: getWeekNumber(baseDate),
         monthNumber: baseDate.getMonth() + 1,
-        capacityAvailable: baseData.totalCapacity - baseData.capacityUsed,
+        totalCapacity: defaultCapacity,
+        capacityAvailable: defaultCapacity - baseData.capacityUsed,
       });
     } else if (type === "week") {
       // Generate flights for selected days in the week
@@ -131,7 +133,8 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
             date: format(flightDate, "dd/MM"),
             weekNumber: getWeekNumber(flightDate),
             monthNumber: flightDate.getMonth() + 1,
-            capacityAvailable: baseData.totalCapacity - baseData.capacityUsed,
+            totalCapacity: defaultCapacity,
+            capacityAvailable: defaultCapacity - baseData.capacityUsed,
           });
         }
       }
@@ -150,7 +153,8 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
             date: format(flightDate, "dd/MM"),
             weekNumber: getWeekNumber(flightDate),
             monthNumber: flightDate.getMonth() + 1,
-            capacityAvailable: baseData.totalCapacity - baseData.capacityUsed,
+            totalCapacity: defaultCapacity,
+            capacityAvailable: defaultCapacity - baseData.capacityUsed,
           });
         }
       }
@@ -184,6 +188,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         date: flight.date,
         std: flight.std,
         adep: flight.adep,
+        ades: flight.ades,
         sta: flight.sta,
         operator: flight.operator,
         flight_type: flight.flightType as 'charter' | 'schedule' | 'acmi',
@@ -422,6 +427,20 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
 
                 <FormField
                   control={form.control}
+                  name="ades"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>ADES *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="LHR" {...field} maxLength={4} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
                   name="flightType"
                   render={({ field }) => (
                     <FormItem>
@@ -438,24 +457,6 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                           <SelectItem value="acmi">ACMI</SelectItem>
                         </SelectContent>
                       </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="totalCapacity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Capacity *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
