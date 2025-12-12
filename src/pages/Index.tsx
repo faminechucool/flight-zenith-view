@@ -8,6 +8,7 @@ import { CreateFlightForm } from "@/components/CreateFlightForm";
 import { GanttView } from "@/components/GanttView";
 import { ExcelView } from "@/components/ExcelView";
 import { ActivityLogTab } from "@/components/ActivityLogTab";
+import Registration from "@/components/registration";
 import { mockAircraftTableData } from "@/data/mockData";
 import { useAircraftData } from "@/hooks/useAircraftData";
 import { Plane } from "lucide-react";
@@ -304,6 +305,7 @@ const Index = () => {
           </TabsContent>
           {/*Registration Tab */}
           <TabsContent value="registration">
+            <Registration/>
           </TabsContent>
         </Tabs>
       </div>
