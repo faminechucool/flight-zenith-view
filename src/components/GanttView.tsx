@@ -605,11 +605,20 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onD
               return (
                 <div key={registration} className="flex border-b hover:bg-muted/20">
                   <div
-                    className="w-[120px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background flex items-center justify-center"
+                    className="w-[180px] flex-shrink-0 border-r bg-muted/10 p-3 sticky left-0 z-10 bg-background flex items-center justify-center"
                     style={{ minHeight: `${rowHeight}px` }}
                   >
                     <div className="text-center">
-                      <div className="font-bold text-base">{registration}</div>
+                      <div className="font-bold text-base">
+                        {registration}
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {/* Show operator name for this registration (first match) */}
+                          {(() => {
+                            const found = filteredAircraft.find(f => f.registration === registration);
+                            return found ? found.operator : '';
+                          })()}
+                        </span>
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1">
                         {filteredAircraft.filter(f => f.registration === registration).length} flights
                       </div>
