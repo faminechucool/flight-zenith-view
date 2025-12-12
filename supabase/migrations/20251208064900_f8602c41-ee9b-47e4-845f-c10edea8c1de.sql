@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.aircraft_data (
     adep VARCHAR(4) NOT NULL,
     sta VARCHAR(5) NOT NULL,
     operator VARCHAR(100) NOT NULL,
-    flight_type VARCHAR(20) CHECK (flight_type IN ('charter', 'schedule', 'acmi')) NOT NULL,
+    flight_type VARCHAR(20) CHECK (flight_type IN ('charter', 'schedule', 'acmi','maintenance')) NOT NULL,
     total_capacity INTEGER NOT NULL,
     capacity_used INTEGER NOT NULL,
     capacity_available INTEGER NOT NULL,
@@ -61,3 +61,4 @@ CREATE TRIGGER update_aircraft_data_updated_at
     BEFORE UPDATE ON public.aircraft_data
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
+
