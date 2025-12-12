@@ -11,6 +11,31 @@ export const useAircraftData = () => {
 
     try {
       setLoading(true)
+      // Define the expected type for the Supabase row, including block_hours
+      type AircraftDataRow = {
+        id: string
+        week_number: number
+        month_number: number
+        registration: string
+        flight_no: string
+        day: string
+        date: string
+        std: string
+        adep: string
+        ades: string
+        sta: string
+        operator: string
+        flight_type: string
+        block_hours: number
+        capacity_used: number
+        capacity_available: number
+        status: string
+        client_name: string
+        contract_id: string
+        revenue: number
+        flight_positioning: string
+      }
+
       const { data, error } = await supabase
         .from('aircraft_data')
         .select('*')
@@ -19,7 +44,7 @@ export const useAircraftData = () => {
       if (error) throw error
 
       if (data) {
-        const formattedData: AircraftTableData[] = data.map(item => ({
+        const formattedData: AircraftTableData[] = ((data as unknown) as AircraftDataRow[]).map(item => ({
           id: item.id,
           weekNumber: item.week_number || 1,
           monthNumber: item.month_number || 1,
@@ -33,7 +58,7 @@ export const useAircraftData = () => {
           sta: item.sta,
           operator: item.operator,
           flightType: item.flight_type as 'charter' | 'schedule' | 'acmi',
-          totalCapacity: item.total_capacity,
+          blockHours: item.block_hours || 0,
           capacityUsed: item.capacity_used,
           capacityAvailable: item.capacity_available,
           status: item.status as 'operational' | 'aog' | 'maintenance' | 'cancelled',

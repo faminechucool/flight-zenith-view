@@ -683,11 +683,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onD
                                   ...statusStyle,
                                   ...positioningStyle,
                                 }}
-<<<<<<< HEAD
-                                title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} |${flight.adep}`}
-=======
                                 title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}-${flight.ades || '?'}`}
->>>>>>> 743ae4df350028dde301b7d38db0da25e4fad0c6
                               >
                                 <div className="flex items-center gap-1 px-2 h-full overflow-hidden">
                                   <div

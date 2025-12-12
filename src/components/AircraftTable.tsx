@@ -139,8 +139,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                     onSave={(newValue) => handleUpdate(aircraft.id, 'flightPositioning', newValue)}
                   />
                 </TableCell>
-                <TableCell className="text-center py-2">{aircraft.totalCapacity}</TableCell>
-                <TableCell className="text-sm py-2">{formatCapacity(aircraft.capacityUsed, aircraft.totalCapacity)}</TableCell>
+                <TableCell className="text-sm py-2">{formatCapacity(aircraft.capacityUsed, aircraft.blockHours)}</TableCell>
                 <TableCell className="text-center py-2">{aircraft.capacityAvailable}</TableCell>
                 <TableCell className="py-2">
                   <EditableSelectCell

@@ -32,11 +32,7 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
   }, 0);
   
   const totalCapacityUsed = aircraft.reduce((sum, a) => sum + a.capacityUsed, 0);
-  const totalCapacity = aircraft.reduce((sum, a) => sum + a.totalCapacity, 0);
   
-  const avgCapacityUtilization = totalCapacity > 0 
-    ? Math.round((totalCapacityUsed / totalCapacity) * 100)
-    : 0;
 
   const stats = [
     {
@@ -69,7 +65,7 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
     },
     {
       title: "Capacity Utilization",
-      value: `${avgCapacityUtilization}%`,
+      value: "N/A",
       icon: TrendingUp,
       description: "Average seat usage",
       color: "text-aviation-accent"

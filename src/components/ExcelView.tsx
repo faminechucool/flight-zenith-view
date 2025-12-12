@@ -123,7 +123,6 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
                   onSave={(value) => handleUpdate(flight.id, 'flightType', value)}
                 />
               </TableCell>
-              <TableCell className="border-r">{flight.totalCapacity}</TableCell>
               <TableCell className="border-r">{flight.capacityUsed}</TableCell>
               <TableCell className="border-r">{flight.capacityAvailable}</TableCell>
               <TableCell className="border-r">
