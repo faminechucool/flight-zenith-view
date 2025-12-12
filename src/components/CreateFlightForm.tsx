@@ -461,25 +461,6 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="capacityUsed"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Capacity Used *</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <FormField
                   control={form.control}
                   name="status"
