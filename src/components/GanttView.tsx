@@ -589,7 +589,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onN
                                   height: `${FLIGHT_HEIGHT}px`,
                                   pointerEvents: 'auto'
                                 }}
-                                title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} | ${flight.adep}`}
+                                title={`${flight.flightNo} | ${flight.date} | ${flight.std}-${flight.sta} |${flight.adep}`}
                               >
                                 <div className="flex items-center gap-1 px-2 h-full overflow-hidden">
                                   <div

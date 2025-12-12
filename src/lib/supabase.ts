@@ -27,6 +27,7 @@ export type Database = {
           date: string
           std: string
           adep: string
+          ades:string
           sta: string
           operator: string
           flight_type: 'charter' | 'schedule' | 'acmi'
