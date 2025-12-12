@@ -124,6 +124,7 @@ const Index = () => {
             <TabsTrigger value="weekly">Weekly Summary</TabsTrigger>
             <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
             <TabsTrigger value="logs">Activity Logs</TabsTrigger>
+            <TabsTrigger value="registration">Registration</TabsTrigger>
           </TabsList>
 
           {/* Flight Operations Tab */}
@@ -300,6 +301,9 @@ const Index = () => {
           {/* Activity Logs Tab */}
           <TabsContent value="logs">
             <ActivityLogTab />
+          </TabsContent>
+          {/*Registration Tab */}
+          <TabsContent value="registration">
           </TabsContent>
         </Tabs>
       </div>
