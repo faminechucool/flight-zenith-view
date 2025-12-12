@@ -23,6 +23,7 @@ export type Database = {
           id: string
           new_value: string
           old_value: string
+          reason: string | null
         }
         Insert: {
           aircraft_id?: string | null
@@ -32,6 +33,7 @@ export type Database = {
           id?: string
           new_value: string
           old_value: string
+          reason?: string | null
         }
         Update: {
           aircraft_id?: string | null
@@ -41,6 +43,7 @@ export type Database = {
           id?: string
           new_value?: string
           old_value?: string
+          reason?: string | null
         }
         Relationships: [
           {
@@ -55,6 +58,7 @@ export type Database = {
       aircraft_data: {
         Row: {
           adep: string
+          ades: string
           capacity_available: number
           capacity_used: number
           client_name: string
@@ -79,6 +83,7 @@ export type Database = {
         }
         Insert: {
           adep: string
+          ades?: string
           capacity_available: number
           capacity_used: number
           client_name: string
@@ -103,6 +108,7 @@ export type Database = {
         }
         Update: {
           adep?: string
+          ades?: string
           capacity_available?: number
           capacity_used?: number
           client_name?: string

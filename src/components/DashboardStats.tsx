@@ -1,19 +1,38 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Plane, CheckCircle, AlertTriangle, Calendar, TrendingUp } from "lucide-react";
+import { Plane, CheckCircle, AlertTriangle, Clock, TrendingUp } from "lucide-react";
 import { AircraftTableData } from "@/data/mockData";
 
 interface DashboardStatsProps {
   aircraft: AircraftTableData[];
 }
 
+// Calculate block hours from STD and STA (flight time + 1 hour)
+const calculateBlockHours = (std: string, sta: string): number => {
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+  const startMin = parseTime(std);
+  const endMin = parseTime(sta);
+  const flightMin = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+  // Block hours = flight time + 1 hour (60 minutes)
+  return (flightMin + 60) / 60;
+};
+
 export function DashboardStats({ aircraft }: DashboardStatsProps) {
   // Calculate stats
-  const totalAircraft = aircraft.length;
-  const operationalAircraft = aircraft.filter(a => a.status === "operational").length;
-  const aogAircraft = aircraft.filter(a => a.status === "aog").length;
+  const totalFlights = aircraft.length;
+  const operationalFlights = aircraft.filter(a => a.status === "operational").length;
+  const aogFlights = aircraft.filter(a => a.status === "aog").length;
   
-  const totalCapacity = aircraft.reduce((sum, a) => sum + a.totalCapacity, 0);
+  // Calculate total block hours
+  const totalBlockHours = aircraft.reduce((sum, a) => {
+    if (a.status === 'cancelled' || a.status === 'aog') return sum;
+    return sum + calculateBlockHours(a.std, a.sta);
+  }, 0);
+  
   const totalCapacityUsed = aircraft.reduce((sum, a) => sum + a.capacityUsed, 0);
+  const totalCapacity = aircraft.reduce((sum, a) => sum + a.totalCapacity, 0);
   
   const avgCapacityUtilization = totalCapacity > 0 
     ? Math.round((totalCapacityUsed / totalCapacity) * 100)
@@ -21,31 +40,31 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
 
   const stats = [
     {
-      title: "Total Aircraft",
-      value: totalAircraft,
+      title: "Total Flights",
+      value: totalFlights,
       icon: Plane,
-      description: "Fleet size",
+      description: "Total flights",
       color: "text-aviation"
     },
     {
       title: "Operational",
-      value: operationalAircraft,
+      value: operationalFlights,
       icon: CheckCircle,
       description: "Ready for service",
       color: "text-emerald-600"
     },
     {
       title: "AOG",
-      value: aogAircraft,
+      value: aogFlights,
       icon: AlertTriangle,
       description: "Aircraft on ground",
       color: "text-destructive"
     },
     {
-      title: "Total Capacity",
-      value: totalCapacity,
-      icon: Calendar,
-      description: "All aircraft seats",
+      title: "Block Hours",
+      value: totalBlockHours.toFixed(1),
+      icon: Clock,
+      description: "Flight + 1hr per flight",
       color: "text-aviation-secondary"
     },
     {

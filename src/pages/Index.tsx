@@ -7,6 +7,7 @@ import { MonthlySummary } from "@/components/MonthlySummary";
 import { CreateFlightForm } from "@/components/CreateFlightForm";
 import { GanttView } from "@/components/GanttView";
 import { ExcelView } from "@/components/ExcelView";
+import { ActivityLogTab } from "@/components/ActivityLogTab";
 import { mockAircraftTableData } from "@/data/mockData";
 import { useAircraftData } from "@/hooks/useAircraftData";
 import { Plane } from "lucide-react";
@@ -24,7 +25,7 @@ import {
 const ITEMS_PER_PAGE = 15;
 
 const Index = () => {
-  const { aircraft: dbAircraft, loading, updateAircraft, updateFlightTimes, refetch } = useAircraftData();
+  const { aircraft: dbAircraft, loading, updateAircraft, updateFlightTimes, deleteAircraft, refetch } = useAircraftData();
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState("operations");
   const [filters, setFilters] = useState<FilterState>({
@@ -122,6 +123,7 @@ const Index = () => {
             <TabsTrigger value="excel">Excel View</TabsTrigger>
             <TabsTrigger value="weekly">Weekly Summary</TabsTrigger>
             <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
+            <TabsTrigger value="logs">Activity Logs</TabsTrigger>
           </TabsList>
 
           {/* Flight Operations Tab */}
@@ -275,6 +277,7 @@ const Index = () => {
               aircraft={filteredAircraft} 
               onUpdateFlightTimes={updateFlightTimes}
               onUpdateAircraft={updateAircraft}
+              onDeleteAircraft={deleteAircraft}
               onNavigateToCreate={() => setActiveTab("create")}
             />
           </TabsContent>
@@ -292,6 +295,11 @@ const Index = () => {
           {/* Monthly Summary Tab */}
           <TabsContent value="monthly">
             <MonthlySummary aircraft={aircraftData} />
+          </TabsContent>
+
+          {/* Activity Logs Tab */}
+          <TabsContent value="logs">
+            <ActivityLogTab />
           </TabsContent>
         </Tabs>
       </div>

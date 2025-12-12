@@ -29,6 +29,7 @@ export const useAircraftData = () => {
           date: item.date,
           std: item.std,
           adep: item.adep,
+          ades: item.ades || '',
           sta: item.sta,
           operator: item.operator,
           flightType: item.flight_type as 'charter' | 'schedule' | 'acmi',
@@ -50,7 +51,7 @@ export const useAircraftData = () => {
     }
   }
 
-  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning', newValue: string, changedBy: string = 'User') => {
+  const updateAircraft = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning' | 'ades' | 'adep', newValue: string, changedBy: string = 'User', reason?: string) => {
 
     try {
       const currentAircraft = aircraft.find(a => a.id === id)
@@ -64,7 +65,9 @@ export const useAircraftData = () => {
         weekNumber: { value: String(currentAircraft.weekNumber), dbField: 'week_number' },
         date: { value: currentAircraft.date, dbField: 'date' },
         flightPositioning: { value: currentAircraft.flightPositioning, dbField: 'flight_positioning' },
-        day: { value: currentAircraft.day, dbField: 'day' }
+        day: { value: currentAircraft.day, dbField: 'day' },
+        adep: { value: currentAircraft.adep, dbField: 'adep' },
+        ades: { value: currentAircraft.ades, dbField: 'ades' }
       }
       
       const oldValue = fieldMap[field]?.value || ''
@@ -90,7 +93,8 @@ export const useAircraftData = () => {
           old_value: oldValue,
           new_value: newValue,
           changed_by: changedBy,
-          changed_at: new Date().toISOString()
+          changed_at: new Date().toISOString(),
+          reason: reason || null
         })
 
       if (logError) throw logError
@@ -105,7 +109,7 @@ export const useAircraftData = () => {
     }
   }
 
-  const updateFlightTimes = async (id: string, newStd: string, newSta: string, changedBy: string = 'User') => {
+  const updateFlightTimes = async (id: string, newStd: string, newSta: string, changedBy: string = 'User', reason?: string) => {
     try {
       const currentAircraft = aircraft.find(a => a.id === id)
       if (!currentAircraft) throw new Error('Aircraft not found')
@@ -134,7 +138,8 @@ export const useAircraftData = () => {
           old_value: oldStd,
           new_value: newStd,
           changed_by: changedBy,
-          changed_at: new Date().toISOString()
+          changed_at: new Date().toISOString(),
+          reason: reason || null
         })
 
       // Log the activity for STA change
@@ -146,7 +151,8 @@ export const useAircraftData = () => {
           old_value: oldSta,
           new_value: newSta,
           changed_by: changedBy,
-          changed_at: new Date().toISOString()
+          changed_at: new Date().toISOString(),
+          reason: reason || null
         })
 
       // Refresh data
@@ -156,6 +162,42 @@ export const useAircraftData = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update flight times')
       return { success: false, error: err instanceof Error ? err.message : 'Failed to update flight times' }
+    }
+  }
+
+  const deleteAircraft = async (id: string, changedBy: string = 'User', reason?: string) => {
+    try {
+      const currentAircraft = aircraft.find(a => a.id === id)
+      if (!currentAircraft) throw new Error('Aircraft not found')
+
+      // Log deletion before deleting
+      await supabase
+        .from('activity_log')
+        .insert({
+          aircraft_id: null,
+          field_name: 'flight_deleted',
+          old_value: `${currentAircraft.flightNo} (${currentAircraft.registration})`,
+          new_value: 'DELETED',
+          changed_by: changedBy,
+          changed_at: new Date().toISOString(),
+          reason: reason || null
+        })
+
+      // Delete the aircraft
+      const { error: deleteError } = await supabase
+        .from('aircraft_data')
+        .delete()
+        .eq('id', id)
+
+      if (deleteError) throw deleteError
+
+      // Refresh data
+      await fetchAircraft()
+      
+      return { success: true }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete aircraft')
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to delete aircraft' }
     }
   }
 
@@ -169,6 +211,7 @@ export const useAircraftData = () => {
     error,
     updateAircraft,
     updateFlightTimes,
+    deleteAircraft,
     refetch: fetchAircraft
   }
 }
