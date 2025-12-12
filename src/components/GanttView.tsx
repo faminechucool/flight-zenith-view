@@ -543,7 +543,7 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onD
         <div className="sticky top-0 z-20 bg-background border-b">
           {/* Week row */}
           <div className="flex border-b">
-            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 sticky left-0 z-30 p-2 text-xs font-semibold">
+            <div className="w-[120px] flex-shrink-0 border-r bg-muted/50 sticky left-0 z-30 p-2 text-center text-xs font-semibold">
               Week
             </div>
             {visibleWeeks.map(week => {
