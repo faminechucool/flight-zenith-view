@@ -23,6 +23,7 @@ const defaultColors: ColorSettings = {
     charter: '#8b5cf6', // purple
     schedule: '#3b82f6', // blue
     acmi: '#f97316', // orange
+    maintenance: '#eab308', // yellow (same as status)
   },
   statuses: {
     operational: '#22c55e', // green
