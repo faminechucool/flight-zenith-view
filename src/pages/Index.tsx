@@ -8,8 +8,10 @@ import { CreateFlightForm } from "@/components/CreateFlightForm";
 import { GanttView } from "@/components/GanttView";
 import { ExcelView } from "@/components/ExcelView";
 import { ActivityLogTab } from "@/components/ActivityLogTab";
+import { RegistrationTab } from "@/components/RegistrationTab";
 import { mockAircraftTableData } from "@/data/mockData";
 import { useAircraftData } from "@/hooks/useAircraftData";
+import { useRegistrations } from "@/hooks/useRegistrations";
 import { Plane } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -26,6 +28,7 @@ const ITEMS_PER_PAGE = 15;
 
 const Index = () => {
   const { aircraft: dbAircraft, loading, updateAircraft, updateFlightTimes, deleteAircraft, refetch } = useAircraftData();
+  const { activeRegistrations } = useRegistrations();
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState("operations");
   const [filters, setFilters] = useState<FilterState>({
@@ -124,6 +127,7 @@ const Index = () => {
             <TabsTrigger value="weekly">Weekly Summary</TabsTrigger>
             <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
             <TabsTrigger value="logs">Activity Logs</TabsTrigger>
+            <TabsTrigger value="registrations">Registrations</TabsTrigger>
           </TabsList>
 
           {/* Flight Operations Tab */}
@@ -275,6 +279,7 @@ const Index = () => {
           <TabsContent value="gantt">
             <GanttView 
               aircraft={filteredAircraft} 
+              activeRegistrations={activeRegistrations}
               onUpdateFlightTimes={updateFlightTimes}
               onUpdateAircraft={updateAircraft}
               onDeleteAircraft={deleteAircraft}
@@ -300,6 +305,11 @@ const Index = () => {
           {/* Activity Logs Tab */}
           <TabsContent value="logs">
             <ActivityLogTab />
+          </TabsContent>
+
+          {/* Registrations Tab */}
+          <TabsContent value="registrations">
+            <RegistrationTab />
           </TabsContent>
         </Tabs>
       </div>

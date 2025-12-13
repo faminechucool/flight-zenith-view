@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ColorSettingsDialog } from "@/components/ColorSettingsDialog";
 import { ChangeReasonDialog } from "@/components/ChangeReasonDialog";
 import { useColorSettings, ColorSettings } from "@/hooks/useColorSettings";
+import { Registration } from "@/hooks/useRegistrations";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +33,7 @@ import {
 
 interface GanttViewProps {
   aircraft: AircraftTableData[];
+  activeRegistrations: Registration[];
   onUpdateFlightTimes: (id: string, newStd: string, newSta: string, changedBy?: string, reason?: string) => Promise<unknown>;
   onUpdateAircraft: (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber' | 'date' | 'flightPositioning' | 'ades' | 'adep', newValue: string, changedBy?: string, reason?: string) => Promise<unknown>;
   onDeleteAircraft?: (id: string, changedBy?: string, reason?: string) => Promise<unknown>;
@@ -43,7 +45,7 @@ const FLIGHT_HEIGHT = 24;
 const LANE_HEIGHT = 32;
 const DRAG_THRESHOLD = 5;
 
-export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onDeleteAircraft, onNavigateToCreate }: GanttViewProps) => {
+export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, onUpdateAircraft, onDeleteAircraft, onNavigateToCreate }: GanttViewProps) => {
   const { colors, updateColor, resetColors } = useColorSettings();
   
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
@@ -129,10 +131,18 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onD
     return dates;
   }, [visibleWeeks, datesByWeek, selectedDate]);
 
-  // Filtered aircraft based on visible dates
+  // Active registration names
+  const activeRegNames = useMemo(() => {
+    return activeRegistrations.map(r => r.registration);
+  }, [activeRegistrations]);
+
+  // Filtered aircraft based on visible dates and active registrations
   const filteredAircraft = useMemo(() => {
-    return aircraft.filter(a => visibleDates.includes(a.date));
-  }, [aircraft, visibleDates]);
+    return aircraft.filter(a => 
+      visibleDates.includes(a.date) && 
+      activeRegNames.includes(a.registration)
+    );
+  }, [aircraft, visibleDates, activeRegNames]);
 
   // Filtered dates for dropdown
   const filteredDates = useMemo(() => {
@@ -196,10 +206,12 @@ export const GanttView = ({ aircraft, onUpdateFlightTimes, onUpdateAircraft, onD
     return grouped;
   }, [filteredAircraft, visibleDates]);
 
-  // Get unique registrations
+  // Get unique registrations - only show active registrations that have flights
   const registrations = useMemo(() => {
-    return Array.from(new Set(filteredAircraft.map(f => f.registration))).sort();
-  }, [filteredAircraft]);
+    const flightRegs = Array.from(new Set(filteredAircraft.map(f => f.registration)));
+    // Filter to only active registrations that have flights
+    return activeRegNames.filter(reg => flightRegs.includes(reg)).sort();
+  }, [filteredAircraft, activeRegNames]);
 
   // Max lanes per reg+date for row height
   const maxLanesPerCell = useMemo(() => {
