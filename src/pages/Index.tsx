@@ -8,11 +8,7 @@ import { CreateFlightForm } from "@/components/CreateFlightForm";
 import { GanttView } from "@/components/GanttView";
 import { ExcelView } from "@/components/ExcelView";
 import { ActivityLogTab } from "@/components/ActivityLogTab";
-<<<<<<< HEAD
-import Registration from "@/components/registration";
-=======
 import { RegistrationTab } from "@/components/RegistrationTab";
->>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
 import { mockAircraftTableData } from "@/data/mockData";
 import { useAircraftData } from "@/hooks/useAircraftData";
 import { useRegistrations } from "@/hooks/useRegistrations";
@@ -131,11 +127,7 @@ const Index = () => {
             <TabsTrigger value="weekly">Weekly Summary</TabsTrigger>
             <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
             <TabsTrigger value="logs">Activity Logs</TabsTrigger>
-<<<<<<< HEAD
-            <TabsTrigger value="registration">Registration</TabsTrigger>
-=======
             <TabsTrigger value="registrations">Registrations</TabsTrigger>
->>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
           </TabsList>
 
           {/* Flight Operations Tab */}
@@ -314,16 +306,10 @@ const Index = () => {
           <TabsContent value="logs">
             <ActivityLogTab />
           </TabsContent>
-<<<<<<< HEAD
-          {/*Registration Tab */}
-          <TabsContent value="registration">
-            <Registration/>
-=======
 
           {/* Registrations Tab */}
           <TabsContent value="registrations">
             <RegistrationTab />
->>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
           </TabsContent>
         </Tabs>
       </div>
