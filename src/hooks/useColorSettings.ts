@@ -5,6 +5,7 @@ export interface ColorSettings {
     charter: string;
     schedule: string;
     acmi: string;
+    maintenance: string;
   };
   statuses: {
     operational: string;
@@ -23,7 +24,11 @@ const defaultColors: ColorSettings = {
     charter: '#8b5cf6', // purple
     schedule: '#3b82f6', // blue
     acmi: '#f97316', // orange
+<<<<<<< HEAD
     maintenance: '#eab308', // yellow (same as status)
+=======
+    maintenance: '#eab308', // yellow
+>>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
   },
   statuses: {
     operational: '#22c55e', // green
@@ -44,7 +49,13 @@ export function useColorSettings() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        // Merge with defaults to handle new keys
+        return {
+          flightTypes: { ...defaultColors.flightTypes, ...parsed.flightTypes },
+          statuses: { ...defaultColors.statuses, ...parsed.statuses },
+          positioning: { ...defaultColors.positioning, ...parsed.positioning },
+        };
       }
     } catch (e) {
       console.error('Failed to load color settings:', e);

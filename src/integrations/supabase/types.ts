@@ -133,6 +133,36 @@ export type Database = {
         }
         Relationships: []
       }
+      registrations: {
+        Row: {
+          aircraft_type: string
+          created_at: string | null
+          id: string
+          operator: string
+          registration: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          aircraft_type: string
+          created_at?: string | null
+          id?: string
+          operator: string
+          registration: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          aircraft_type?: string
+          created_at?: string | null
+          id?: string
+          operator?: string
+          registration?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

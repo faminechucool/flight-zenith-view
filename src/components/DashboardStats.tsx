@@ -1,22 +1,33 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Plane, CheckCircle, AlertTriangle, Clock, TrendingUp } from "lucide-react";
+import { Plane, CheckCircle, AlertTriangle, Clock, Wrench } from "lucide-react";
 import { AircraftTableData } from "@/data/mockData";
 
 interface DashboardStatsProps {
   aircraft: AircraftTableData[];
 }
 
-// Calculate block hours from STD and STA (flight time + 1 hour)
-const calculateBlockHours = (std: string, sta: string): number => {
+// Calculate flight time from STD and STA in minutes
+const calculateFlightMinutes = (std: string, sta: string): number => {
   const parseTime = (t: string) => {
     const [h, m] = t.split(':').map(Number);
     return h * 60 + m;
   };
   const startMin = parseTime(std);
   const endMin = parseTime(sta);
-  const flightMin = endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
-  // Block hours = flight time + 1 hour (60 minutes)
-  return (flightMin + 60) / 60;
+  return endMin < startMin ? endMin + 1440 - startMin : endMin - startMin;
+};
+
+// Calculate block hours from STD and STA (flight time + 1 hour)
+const calculateBlockMinutes = (std: string, sta: string): number => {
+  return calculateFlightMinutes(std, sta) + 60;
+};
+
+// Format minutes as HH:MM:SS
+const formatMinutesToHMS = (totalMinutes: number): string => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = Math.floor(totalMinutes % 60);
+  const seconds = 0; // We don't track seconds
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
 export function DashboardStats({ aircraft }: DashboardStatsProps) {
@@ -24,15 +35,20 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
   const totalFlights = aircraft.length;
   const operationalFlights = aircraft.filter(a => a.status === "operational").length;
   const aogFlights = aircraft.filter(a => a.status === "aog").length;
-  const maintenanceFlights = aircraft.filter(a => a.status === "maintenance").length;
-  // Calculate total block hours
-  const totalBlockHours = aircraft.reduce((sum, a) => {
+  
+  // Calculate total block hours (excluding cancelled and AOG)
+  const totalBlockMinutes = aircraft.reduce((sum, a) => {
     if (a.status === 'cancelled' || a.status === 'aog') return sum;
-    return sum + calculateBlockHours(a.std, a.sta);
+    return sum + calculateBlockMinutes(a.std, a.sta);
   }, 0);
   
-  const totalCapacityUsed = aircraft.reduce((sum, a) => sum + a.capacityUsed, 0);
-  
+  // Calculate maintenance hours: sum of flight time when status=maintenance AND flightType=maintenance
+  const maintenanceMinutes = aircraft.reduce((sum, a) => {
+    if (a.status === 'maintenance' && a.flightType === 'maintenance') {
+      return sum + calculateFlightMinutes(a.std, a.sta);
+    }
+    return sum;
+  }, 0);
 
   const stats = [
     {
@@ -58,15 +74,15 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
     },
     {
       title: "Block Hours",
-      value: totalBlockHours.toFixed(1),
+      value: formatMinutesToHMS(totalBlockMinutes),
       icon: Clock,
       description: "block hours",
       color: "text-aviation-secondary"
     },
     {
-      title: "Maintenance hours",
-      value: maintenanceFlights,
-      icon: TrendingUp,
+      title: "Maintenance Hours",
+      value: formatMinutesToHMS(maintenanceMinutes),
+      icon: Wrench,
       description: "maintenance hours",
       color: "text-aviation-accent"
     }

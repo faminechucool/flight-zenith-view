@@ -8,9 +8,14 @@ import { CreateFlightForm } from "@/components/CreateFlightForm";
 import { GanttView } from "@/components/GanttView";
 import { ExcelView } from "@/components/ExcelView";
 import { ActivityLogTab } from "@/components/ActivityLogTab";
+<<<<<<< HEAD
 import Registration from "@/components/registration";
+=======
+import { RegistrationTab } from "@/components/RegistrationTab";
+>>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
 import { mockAircraftTableData } from "@/data/mockData";
 import { useAircraftData } from "@/hooks/useAircraftData";
+import { useRegistrations } from "@/hooks/useRegistrations";
 import { Plane } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -27,6 +32,7 @@ const ITEMS_PER_PAGE = 15;
 
 const Index = () => {
   const { aircraft: dbAircraft, loading, updateAircraft, updateFlightTimes, deleteAircraft, refetch } = useAircraftData();
+  const { activeRegistrations } = useRegistrations();
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState("operations");
   const [filters, setFilters] = useState<FilterState>({
@@ -125,7 +131,11 @@ const Index = () => {
             <TabsTrigger value="weekly">Weekly Summary</TabsTrigger>
             <TabsTrigger value="monthly">Monthly Summary</TabsTrigger>
             <TabsTrigger value="logs">Activity Logs</TabsTrigger>
+<<<<<<< HEAD
             <TabsTrigger value="registration">Registration</TabsTrigger>
+=======
+            <TabsTrigger value="registrations">Registrations</TabsTrigger>
+>>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
           </TabsList>
 
           {/* Flight Operations Tab */}
@@ -277,6 +287,7 @@ const Index = () => {
           <TabsContent value="gantt">
             <GanttView 
               aircraft={filteredAircraft} 
+              activeRegistrations={activeRegistrations}
               onUpdateFlightTimes={updateFlightTimes}
               onUpdateAircraft={updateAircraft}
               onDeleteAircraft={deleteAircraft}
@@ -303,9 +314,16 @@ const Index = () => {
           <TabsContent value="logs">
             <ActivityLogTab />
           </TabsContent>
+<<<<<<< HEAD
           {/*Registration Tab */}
           <TabsContent value="registration">
             <Registration/>
+=======
+
+          {/* Registrations Tab */}
+          <TabsContent value="registrations">
+            <RegistrationTab />
+>>>>>>> 59b20c513f3c50d2c0a22617ecd815e2b5c82d9b
           </TabsContent>
         </Tabs>
       </div>
