@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRegistrations } from "@/hooks/useRegistrations";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -59,6 +59,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
   const { toast } = useToast();
 
   const { activeRegistrations, loading: regLoading } = useRegistrations();
+  const [contractIdLoading, setContractIdLoading] = useState(false);
   const form = useForm<FlightFormData>({
     resolver: zodResolver(flightSchema),
     defaultValues: {
@@ -78,6 +79,48 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
       flightPositioning: "live_flight",
     },
   });
+
+  // Auto-increment contractId logic
+  const getNextContractId = async (flightType: string) => {
+    setContractIdLoading(true);
+    try {
+      const year = new Date().getFullYear();
+      let prefix = "";
+      if (flightType === "schedule") prefix = `SKD-${year}-`;
+      else if (flightType === "charter") prefix = `AOA-${year}-`;
+      else return "";
+      // Query existing contract IDs for this type/year
+      interface ContractIdRow {
+        contract_id: string;
+      }
+      const { data, error } = await supabase
+        .from('aircraft_data')
+        .select('contract_id')
+        .ilike('contract_id', `${prefix}%`);
+      if (error) throw error;
+      const nums = (data as ContractIdRow[] || [])
+        .map((row: ContractIdRow) => {
+          const match = row.contract_id && row.contract_id.match(/(\d{3})$/);
+          return match ? parseInt(match[1], 10) : 0;
+        })
+        .filter(n => n > 0);
+      const nextNum = (nums.length > 0 ? Math.max(...nums) : 0) + 1;
+      return `${prefix}${String(nextNum).padStart(3, '0')}`;
+    } finally {
+      setContractIdLoading(false);
+    }
+  };
+
+  // Watch flightType and auto-populate contractId
+  const flightType = form.watch('flightType');
+  React.useEffect(() => {
+    if (flightType === 'schedule' || flightType === 'charter') {
+      getNextContractId(flightType).then(cid => form.setValue('contractId', cid));
+    } else {
+      form.setValue('contractId', '');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flightType]);
 
   const getWeekNumber = (date: Date): number => {
     const startDate = new Date(date.getFullYear(), 0, 1);
