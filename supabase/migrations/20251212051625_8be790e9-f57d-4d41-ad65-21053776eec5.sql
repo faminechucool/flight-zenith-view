@@ -1,1 +1,0 @@
-DELETE FROM public.aircraft_data WHERE registration = 'test week';
