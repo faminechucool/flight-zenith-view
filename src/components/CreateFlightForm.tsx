@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRegistrations } from "@/hooks/useRegistrations";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -57,6 +58,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
   const [selectedDays, setSelectedDays] = useState<string[]>(daysOfWeek);
   const { toast } = useToast();
 
+  const { activeRegistrations, loading: regLoading } = useRegistrations();
   const form = useForm<FlightFormData>({
     resolver: zodResolver(flightSchema),
     defaultValues: {
@@ -203,14 +205,15 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
       }));
 
       const { error } = await supabase.from('aircraft_data').insert(dbFlights);
-      
-      if (error) throw error;
-      
+      if (error) {
+        // Log the error for debugging
+        console.error('Supabase insert error:', error);
+        throw error;
+      }
       toast({
         title: "Success!",
         description: `Created ${flights.length} flight(s) successfully.`,
       });
-      
       form.reset();
       onFlightCreated?.();
     } catch (error) {
@@ -299,7 +302,22 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                     <FormItem>
                       <FormLabel>Registration *</FormLabel>
                       <FormControl>
-                        <Input placeholder="N747BA" {...field} />
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={regLoading}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={regLoading ? "Loading..." : "Select registration"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {activeRegistrations.map((reg) => (
+                              <SelectItem key={reg.id} value={reg.registration}>
+                                {reg.registration}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

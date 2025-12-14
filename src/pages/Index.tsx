@@ -41,7 +41,10 @@ const Index = () => {
   });
 
   // Use database data if available, otherwise fallback to mock data
-  const aircraftData = dbAircraft.length > 0 ? dbAircraft : mockAircraftTableData;
+  const aircraftDataRaw = dbAircraft.length > 0 ? dbAircraft : mockAircraftTableData;
+  // Only include flights with active registrations
+  const activeRegNames = activeRegistrations.map(r => r.registration);
+  const aircraftData = aircraftDataRaw.filter(a => activeRegNames.includes(a.registration));
 
   const filteredAircraft = useMemo(() => {
     return aircraftData.filter((aircraft) => {

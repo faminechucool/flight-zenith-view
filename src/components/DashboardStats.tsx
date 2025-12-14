@@ -42,10 +42,10 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
     return sum + calculateBlockMinutes(a.std, a.sta);
   }, 0);
   
-  // Calculate maintenance hours: sum of flight time when status=maintenance AND flightType=maintenance
+  // Calculate maintenance hours: sum of block hours when status=maintenance OR flightType=maintenance
   const maintenanceMinutes = aircraft.reduce((sum, a) => {
-    if (a.status === 'maintenance' && a.flightType === 'maintenance') {
-      return sum + calculateFlightMinutes(a.std, a.sta);
+    if (a.status === 'maintenance' || a.flightType === 'maintenance') {
+      return sum + calculateBlockMinutes(a.std, a.sta);
     }
     return sum;
   }, 0);
