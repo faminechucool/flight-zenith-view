@@ -717,6 +717,9 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                                   <span className="text-[10px] truncate text-white/90">
                                     {flight.adep}{flight.ades ? `-${flight.ades}` : ''}
                                   </span>
+                                  <span className="text-[10px] truncate text-white/90">
+                                    {calculateDuration(flight.std, flight.sta)}
+                                  </span>
                                 </div>
                               </div>
                             );
