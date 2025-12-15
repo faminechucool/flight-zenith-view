@@ -1,8 +1,24 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+
+const REASONS = [
+  "Passenger and Baggage",
+  "Cargo and Mail",
+  "Aircraft and Ramp Handling",
+  "Technical and Aircraft Equipment",
+  "Damage to Aircraft & EDP/Automated Equipment Failure",
+  "Flight Operations and Crewing",
+  "Weather",
+  "ATFM + AIRPORT + GOVERNMENTAL AUTHORITIES",
+  "AIR TRAFFIC FLOW MANAGEMENT RESTRICTIONS",
+  "AIRPORT AND GOVERNMENTAL AUTHORITIES",
+  "Reactionary",
+  "Miscellaneous",
+  "Other"
+];
 
 interface ChangeReasonDialogProps {
   open: boolean;
@@ -21,48 +37,49 @@ export function ChangeReasonDialog({
   onConfirm,
   onCancel,
 }: ChangeReasonDialogProps) {
-  const [reason, setReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
 
   const handleConfirm = () => {
+    const reason = selectedReason === "Other" ? customReason : selectedReason;
     onConfirm(reason);
-    setReason("");
-  };
-
-  const handleCancel = () => {
-    setReason("");
-    onCancel();
+    setSelectedReason("");
+    setCustomReason("");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Reason for Change</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground">
-            <p><strong>Flight:</strong> {flightNo}</p>
-            <p><strong>Change:</strong> {changeDescription}</p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason (optional)</Label>
-            <Textarea
-              id="reason"
-              placeholder="Enter reason for this change..."
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+        <div className="mb-2 font-medium">{changeDescription}</div>
+        <Select value={selectedReason} onValueChange={setSelectedReason}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select reason" />
+          </SelectTrigger>
+          <SelectContent>
+            {REASONS.map((reason) => (
+              <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedReason === "Other" && (
+          <Input
+            className="mt-2"
+            placeholder="Enter custom reason"
+            value={customReason}
+            onChange={e => setCustomReason(e.target.value)}
+          />
+        )}
+        <div className="flex gap-2 mt-4">
+          <Button onClick={handleConfirm} disabled={!selectedReason || (selectedReason === "Other" && !customReason)}>
+            Confirm
+          </Button>
+          <Button variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm}>
-            Confirm Change
-          </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
