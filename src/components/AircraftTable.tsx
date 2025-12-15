@@ -1,3 +1,17 @@
+  // Helper to calculate block time as (STA - STD) + 1 hour
+  function calculateBlockTime(std: string, sta: string): string {
+    if (!std || !sta) return "";
+    const [stdH, stdM] = std.split(":").map(Number);
+    const [staH, staM] = sta.split(":").map(Number);
+    const start = stdH * 60 + stdM;
+    let end = staH * 60 + staM;
+    if (end < start) end += 24 * 60; // handle overnight
+    const diff = end - start + 60; // +1 hour in minutes
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+  }
+              {/* Add Block Time column header in the correct place below */}
 import {
   Table,
   TableBody,
@@ -93,8 +107,9 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
               <TableHead className="w-[80px] py-2">STA</TableHead>
               <TableHead className="w-[80px] py-2">ADES</TableHead>
               <TableHead className="w-[140px] py-2">Operator</TableHead>
+              <TableHead className="w-[120px] py-2">Block Time</TableHead>
               <TableHead className="w-[100px] py-2">Type</TableHead>
-              <TableHead className="w-[200px] py-2">Positioning</TableHead>
+              <TableHead className="w-[200px] py-2">Ferry/Live</TableHead>
               <TableHead className="w-[100px] py-2">Status</TableHead>
               <TableHead className="w-[150px] py-2">Client</TableHead>
               <TableHead className="w-[100px] py-2">Actions</TableHead>
@@ -124,6 +139,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                 <TableCell className="text-sm py-2">{aircraft.sta}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.ades}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.operator}</TableCell>
+                <TableCell className="text-sm py-2">{calculateBlockTime(aircraft.std, aircraft.sta)}</TableCell>
                 <TableCell className="py-2">
                   <EditableSelectCell
                     value={aircraft.flightType}

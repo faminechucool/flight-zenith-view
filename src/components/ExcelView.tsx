@@ -1,3 +1,17 @@
+  // Helper to calculate block time as (STA - STD) + 1 hour
+  function calculateBlockTime(std: string, sta: string): string {
+    if (!std || !sta) return "";
+    const [stdH, stdM] = std.split(":").map(Number);
+    const [staH, staM] = sta.split(":").map(Number);
+    const start = stdH * 60 + stdM;
+    let end = staH * 60 + staM;
+    if (end < start) end += 24 * 60; // handle overnight
+    const diff = end - start + 60; // +1 hour in minutes
+    const hours = Math.floor(diff / 60);
+    const mins = diff % 60;
+    return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
+  }
+
 import { AircraftTableData } from '@/data/mockData'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -80,6 +94,7 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
             <TableHead className="border-r">Client</TableHead>
             <TableHead className="border-r">Contract ID</TableHead>
             <TableHead className="border-r">Revenue</TableHead>
+            <TableHead className="border-r">Block Time</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -132,6 +147,7 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
               <TableCell className="border-r">{flight.clientName}</TableCell>
               <TableCell className="border-r">{flight.contractId}</TableCell>
               <TableCell className="font-medium border-r">${flight.revenue.toLocaleString()}</TableCell>
+              <TableCell className="border-r">{calculateBlockTime(flight.std, flight.sta)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
