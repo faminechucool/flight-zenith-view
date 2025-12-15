@@ -903,7 +903,7 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                           await onUpdateAircraft(selectedFlight.id, 'flightPositioning', newValue, 'User', reason);
                           setSelectedFlight({ 
                             ...selectedFlight, 
-                            flightPositioning: newValue as 'live_flight' | 'ferry_flight' 
+                            flightPositioning: newValue as 'live_flight' | 'ferry_flight' |'spare_flight'
                           });
                           toast.success('Flight positioning updated');
                         } catch (err) {
@@ -921,6 +921,7 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                   <SelectContent>
                     <SelectItem value="live_flight">Live Flight (With Cargo)</SelectItem>
                     <SelectItem value="ferry_flight">Ferry Flight (Empty/Positioning)</SelectItem>
+                    <SelectItem value="spare_flight">Spare Flight</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

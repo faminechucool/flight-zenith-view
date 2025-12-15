@@ -62,7 +62,7 @@ export const EditableCell = ({ value, onSave, disabled = false }: EditableCellPr
       <div className="flex items-center gap-2">
         <span className="font-medium">{value}</span>
         {!isSupabaseConfigured() && (
-          <span className="text-xs text-muted-foreground">(Read-only)</span>
+          <span className="text-xs text-muted-foreground"></span>
         )}
       </div>
     )

@@ -16,7 +16,7 @@ export interface AircraftTableData {
   clientName: string;
   contractId: string;
   revenue: number;
-  flightPositioning: "live_flight" | "ferry_flight";
+  flightPositioning: "live_flight" | "ferry_flight" | "spare_flight";
   blockHours: number;
   capacityUsed: number;
   capacityAvailable: number;

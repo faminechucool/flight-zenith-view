@@ -42,7 +42,7 @@ const flightSchema = z.object({
   clientName: z.string().trim().min(1, "Client name is required").max(100, "Max 100 characters"),
   contractId: z.string().trim().min(1, "Contract ID is required").max(50, "Max 50 characters"),
   revenue: z.number().min(0, "Revenue must be positive"),
-  flightPositioning: z.enum(["live_flight", "ferry_flight"], { required_error: "Flight positioning is required" }),
+  flightPositioning: z.enum(["live_flight", "ferry_flight","spare_flight"], { required_error: "Flight positioning is required" }),
 });
 
 type FlightFormData = z.infer<typeof flightSchema>;
@@ -562,7 +562,14 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                     <FormItem>
                       <FormLabel>ADES *</FormLabel>
                       <FormControl>
-                        <Input placeholder="LHR" {...field} maxLength={4} />
+                        <Input
+                          placeholder="LHR"
+                          maxLength={4}
+                          {...field}
+                          disabled={
+                            form.watch("flightPositioning") === "spare_flight"
+                          }
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -667,7 +674,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                   name="flightPositioning"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Flight Positioning *</FormLabel>
+                      <FormLabel>Ferry/live/empty *</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
@@ -677,6 +684,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                         <SelectContent className="bg-background border shadow-lg z-50">
                           <SelectItem value="live_flight">Live Flight (With Cargo)</SelectItem>
                           <SelectItem value="ferry_flight">Ferry Flight (Empty/Positioning)</SelectItem>
+                          <SelectItem value="spare_flight">Spare Flight</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

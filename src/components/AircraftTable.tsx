@@ -81,6 +81,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
   const flightPositioningOptions = [
     { value: "live_flight", label: "Live Flight (With Cargo)" },
     { value: "ferry_flight", label: "Ferry Flight (Empty/Positioning)" },
+    { value: "spare_flight", label: "Spare Flight" },
   ];
 
   const handleUpdate = async (id: string, field: 'registration' | 'flightNo' | 'status' | 'flightType' | 'weekNumber'|'date'|'flightPositioning', newValue: string) => {

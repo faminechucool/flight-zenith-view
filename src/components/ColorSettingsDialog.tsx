@@ -86,7 +86,17 @@ export function ColorSettingsDialog({ colors, onUpdateColor, onReset }: ColorSet
             <div className="space-y-2">
               {Object.entries(colors.positioning).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between">
-                  <Label>{key === 'live_flight' ? 'Live Flight' : 'Ferry Flight'}</Label>
+                  <Label>
+                    {key === 'live_flight'
+                      ? 'Live Flight'
+                      : key === 'ferry_flight'
+                      ? 'Ferry Flight'
+                      : key === 'spare_flight'
+                      ? 'Spare Flight'
+                      : key === 'spare flight'
+                      ? 'Spare Flight'
+                      : key}
+                  </Label>
                   <div className="flex items-center gap-2">
                     <div 
                       className="w-6 h-6 rounded border" 
