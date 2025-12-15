@@ -230,10 +230,31 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
     }
 
     setIsSubmitting(true);
-    
     try {
       const flights = generateFlights(data, creationType);
-      
+      // Check for duplicate flights (same registration and date)
+      const duplicateChecks = await Promise.all(
+        flights.map(async (flight) => {
+          const { data: existing, error: checkError } = await supabase
+            .from('aircraft_data')
+            .select('id')
+            .eq('registration', flight.registration)
+            .eq('date', flight.date)
+            .maybeSingle();
+          return { exists: !!existing, date: flight.date, registration: flight.registration };
+        })
+      );
+      const duplicates = duplicateChecks.filter(d => d.exists);
+      if (duplicates.length > 0) {
+        toast({
+          title: "Duplicate Flight",
+          description: `A flight for registration ${duplicates[0].registration} already exists on ${duplicates[0].date}.`,
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
       // Insert into database
       const dbFlights = flights.map(flight => ({
         week_number: flight.weekNumber,

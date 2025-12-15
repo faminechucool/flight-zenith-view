@@ -19,6 +19,7 @@ interface WeekSummary {
   uniqueAircraft: number;
   aircraftList: string[];
   flightsByDay: Map<string, AircraftTableData[]>;
+  totalBlockHours: number; // new
 }
 
 export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
@@ -27,9 +28,19 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
   const weeklySummaries = useMemo(() => {
     const summaryMap = new Map<number, WeekSummary>();
 
+    function calculateBlockTimeMinutes(std: string, sta: string): number {
+      if (!std || !sta) return 0;
+      const [stdH, stdM] = std.split(":").map(Number);
+      const [staH, staM] = sta.split(":").map(Number);
+      const start = stdH * 60 + stdM;
+      let end = staH * 60 + staM;
+      if (end < start) end += 24 * 60;
+      const diff = end - start + 60; // +1 hour
+      return diff;
+    }
+
     aircraft.forEach((flight) => {
       const week = flight.weekNumber;
-      
       if (!summaryMap.has(week)) {
         summaryMap.set(week, {
           weekNumber: week,
@@ -38,24 +49,24 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
           uniqueAircraft: 0,
           aircraftList: [],
           flightsByDay: new Map(),
+          totalBlockHours: 0,
         });
       }
-
       const summary = summaryMap.get(week)!;
       summary.totalFlights++;
       summary.totalRevenue += flight.revenue || 0;
-      
       if (!summary.aircraftList.includes(flight.registration)) {
         summary.aircraftList.push(flight.registration);
         summary.uniqueAircraft++;
       }
-
       // Group flights by date
       const dateKey = flight.date;
       if (!summary.flightsByDay.has(dateKey)) {
         summary.flightsByDay.set(dateKey, []);
       }
       summary.flightsByDay.get(dateKey)!.push(flight);
+      // Add block hours
+      summary.totalBlockHours += calculateBlockTimeMinutes(flight.std, flight.sta);
     });
 
     return Array.from(summaryMap.values()).sort((a, b) => a.weekNumber - b.weekNumber);
@@ -73,13 +84,19 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
   }, [weeklySummaries, selectedWeek]);
 
   const totalStats = useMemo(() => {
+    // Sum block hours in minutes, convert to hours/minutes
+    const totalBlockMinutes = displayedSummaries.reduce((acc, summary) => acc + summary.totalBlockHours, 0);
+    const blockHours = Math.floor(totalBlockMinutes / 60);
+    const blockMins = totalBlockMinutes % 60;
     return displayedSummaries.reduce(
       (acc, summary) => ({
         flights: acc.flights + summary.totalFlights,
         revenue: acc.revenue + summary.totalRevenue,
         aircraft: Math.max(acc.aircraft, summary.uniqueAircraft),
+        blockHours,
+        blockMins,
       }),
-      { flights: 0, revenue: 0, aircraft: 0 }
+      { flights: 0, revenue: 0, aircraft: 0, blockHours, blockMins }
     );
   }, [displayedSummaries]);
 
@@ -104,7 +121,21 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Block Hours</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {totalStats.blockHours}h{totalStats.blockMins ? ` ${totalStats.blockMins}m` : ''}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Across {displayedSummaries.length} week{displayedSummaries.length !== 1 ? 's' : ''}
+                    </p>
+                  </CardContent>
+                </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Flights</CardTitle>
@@ -175,6 +206,7 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
                     <TableHead className="text-right">Total Flights</TableHead>
                     <TableHead className="text-right">Revenue</TableHead>
                     <TableHead className="text-right">Unique Aircraft</TableHead>
+                    <TableHead>Block Hours</TableHead>
                     <TableHead>Aircraft Registrations</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -194,6 +226,14 @@ export function WeeklySummary({ aircraft }: WeeklySummaryProps) {
                           ${summary.totalRevenue.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">{summary.uniqueAircraft}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {(() => {
+                            const mins = summary.totalBlockHours;
+                            const h = Math.floor(mins / 60);
+                            const m = mins % 60;
+                            return m === 0 ? `${h}h` : `${h}h ${m}m`;
+                          })()}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {summary.aircraftList.map((reg) => (
