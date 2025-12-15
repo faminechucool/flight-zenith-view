@@ -40,7 +40,7 @@ const registrationSchema = z.object({
   registration: z.string().trim().min(1, "Registration is required").max(20, "Max 20 characters"),
   status: z.enum(["active", "inactive"], { required_error: "Status is required" }),
   aircraftType: z.enum(["B747", "B777"], { required_error: "Aircraft type is required" }),
-  operator: z.enum(["Aerotranscargo", "Romcargo", "Omega"], { required_error: "Operator is required" }),
+  operator: z.enum(["Aerotranscargo", "Romcargo", "OneAir"], { required_error: "Operator is required" }),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
@@ -95,7 +95,7 @@ export function RegistrationTab() {
       registration: reg.registration,
       status: reg.status,
       aircraftType: reg.aircraftType as "B747" | "B777",
-      operator: reg.operator as "Aerotranscargo" | "Romcargo" | "Omega",
+      operator: reg.operator as "Aerotranscargo" | "Romcargo" | "OneAir",
     });
   };
 
@@ -209,7 +209,7 @@ export function RegistrationTab() {
                         <SelectContent className="bg-background border shadow-lg z-50">
                           <SelectItem value="Aerotranscargo">Aerotranscargo</SelectItem>
                           <SelectItem value="Romcargo">Romcargo</SelectItem>
-                          <SelectItem value="Omega">Omega</SelectItem>
+                          <SelectItem value="OneAir">One Air</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
