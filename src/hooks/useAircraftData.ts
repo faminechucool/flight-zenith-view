@@ -57,7 +57,7 @@ export const useAircraftData = () => {
           ades: item.ades || '',
           sta: item.sta,
           operator: item.operator,
-          flightType: item.flight_type as 'charter' | 'schedule' | 'acmi',
+          flightType: item.flight_type as 'charter' | 'schedule' | 'acmi'|'maintenance',
           blockHours: item.block_hours || 0,
           capacityUsed: item.capacity_used,
           capacityAvailable: item.capacity_available,

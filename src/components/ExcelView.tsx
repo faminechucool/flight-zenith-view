@@ -1,4 +1,4 @@
-  // Helper to calculate block time as (STA - STD) + 1 hour
+// Helper to calculate block time as (STA - STD) + 1 hour
   function calculateBlockTime(std: string, sta: string): string {
     if (!std || !sta) return "";
     const [stdH, stdM] = std.split(":").map(Number);
@@ -15,8 +15,10 @@
 import { AircraftTableData } from '@/data/mockData'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { EditableCell } from './EditableCell'
 import { EditableSelectCell } from './EditableSelectCell'
+import * as XLSX from "xlsx";
 
 interface ExcelViewProps {
   aircraft: AircraftTableData[]
@@ -64,8 +66,17 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
 
   const columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R']
 
+  const handleDownloadExcel = () => {
+    // Replace 'data' with your actual data array
+    const worksheet = XLSX.utils.json_to_sheet(aircraft);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    XLSX.writeFile(workbook, "flights.xlsx");
+  };
+
   return (
     <div className="rounded-md border overflow-auto bg-background">
+      <Button onClick={handleDownloadExcel}>Download Excel</Button>
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">

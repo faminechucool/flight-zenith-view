@@ -76,6 +76,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
     { value: "charter", label: "CHARTER" },
     { value: "schedule", label: "SCHEDULE" },
     { value: "acmi", label: "ACMI" },
+    { value: "maintenance", label: "MAINTENANCE" },
   ];
 
   const flightPositioningOptions = [
