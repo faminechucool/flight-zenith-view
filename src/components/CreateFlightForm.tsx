@@ -30,6 +30,7 @@ const flightSchema = z.object({
   registration: z.string().trim().min(1, "Registration is required").max(20, "Max 20 characters"),
   flightNo: z.string().trim().min(1, "Flight number is required").max(20, "Max 20 characters"),
   date: z.date({ required_error: "Date is required" }),
+  endDate: z.date().optional(),
   std: z.string().trim().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   adep: z.string().trim().min(3, "ADEP must be 3-4 characters").max(4, "ADEP must be 3-4 characters"),
   ades: z.string().trim().min(3, "ADES must be 3-4 characters").max(4, "ADES must be 3-4 characters"),
@@ -150,27 +151,41 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
 
   const generateFlights = (baseData: FlightFormData, type: "day" | "week" | "month") => {
     const flights = [];
-    const baseDate = baseData.date;
     const defaultCapacity = 180; // Default total capacity
-    
-    if (type === "day") {
+    const startDate = baseData.date;
+    const endDate = baseData.endDate;
+
+    // If both start and end date are provided, generate for every day in range
+    if (startDate && endDate && endDate >= startDate) {
+      const current = new Date(startDate);
+      while (current <= endDate) {
+        const dayName = getDayName(current);
+        flights.push({
+          ...baseData,
+          day: dayName,
+          date: format(current, "dd/MM"),
+          weekNumber: getWeekNumber(current),
+          monthNumber: current.getMonth() + 1,
+          totalCapacity: defaultCapacity,
+          capacityAvailable: defaultCapacity - baseData.capacityUsed,
+        });
+        current.setDate(current.getDate() + 1);
+      }
+    } else if (type === "day") {
       flights.push({
         ...baseData,
-        day: getDayName(baseDate),
-        date: format(baseDate, "dd/MM"),
-        weekNumber: getWeekNumber(baseDate),
-        monthNumber: baseDate.getMonth() + 1,
+        day: getDayName(startDate),
+        date: format(startDate, "dd/MM"),
+        weekNumber: getWeekNumber(startDate),
+        monthNumber: startDate.getMonth() + 1,
         totalCapacity: defaultCapacity,
         capacityAvailable: defaultCapacity - baseData.capacityUsed,
       });
     } else if (type === "week") {
-      // Generate flights for selected days in the week
       for (let i = 0; i < 7; i++) {
-        const flightDate = new Date(baseDate);
-        flightDate.setDate(baseDate.getDate() + i);
+        const flightDate = new Date(startDate);
+        flightDate.setDate(startDate.getDate() + i);
         const dayName = getDayName(flightDate);
-        
-        // Only create flight if this day is selected
         if (selectedDays.includes(dayName)) {
           flights.push({
             ...baseData,
@@ -184,13 +199,10 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         }
       }
     } else if (type === "month") {
-      // Generate flights for selected days in the month
       for (let i = 0; i < 30; i++) {
-        const flightDate = new Date(baseDate);
-        flightDate.setDate(baseDate.getDate() + i);
+        const flightDate = new Date(startDate);
+        flightDate.setDate(startDate.getDate() + i);
         const dayName = getDayName(flightDate);
-        
-        // Only create flight if this day is selected
         if (selectedDays.includes(dayName)) {
           flights.push({
             ...baseData,
@@ -204,7 +216,6 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         }
       }
     }
-    
     return flights;
   };
 
@@ -381,45 +392,82 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Start Date *</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-background border shadow-lg z-50" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            initialFocus
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormDescription>
-                        {creationType === "week" && "Week starts from this date"}
-                        {creationType === "month" && "Month starts from this date"}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Start Date *</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-background border shadow-lg z-50" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormDescription>
+                          {creationType === "week" && "Week starts from this date"}
+                          {creationType === "month" && "Month starts from this date"}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="endDate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>End Date</FormLabel>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "pl-3 text-left font-normal",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                              >
+                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0 bg-background border shadow-lg z-50" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={field.value}
+                              onSelect={field.onChange}
+                              initialFocus
+                              className="pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}

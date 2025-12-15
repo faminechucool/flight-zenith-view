@@ -91,12 +91,10 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
               <TableHead className="w-[80px] py-2">STD</TableHead>
               <TableHead className="w-[80px] py-2">ADEP</TableHead>
               <TableHead className="w-[80px] py-2">STA</TableHead>
+              <TableHead className="w-[80px] py-2">ADES</TableHead>
               <TableHead className="w-[140px] py-2">Operator</TableHead>
               <TableHead className="w-[100px] py-2">Type</TableHead>
               <TableHead className="w-[200px] py-2">Positioning</TableHead>
-              <TableHead className="w-[90px] py-2">Capacity</TableHead>
-              <TableHead className="w-[120px] py-2">Used</TableHead>
-              <TableHead className="w-[100px] py-2">Available</TableHead>
               <TableHead className="w-[100px] py-2">Status</TableHead>
               <TableHead className="w-[150px] py-2">Client</TableHead>
               <TableHead className="w-[100px] py-2">Actions</TableHead>
@@ -124,6 +122,7 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                 <TableCell className="text-sm py-2">{aircraft.std}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.adep}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.sta}</TableCell>
+                <TableCell className="text-sm py-2">{aircraft.ades}</TableCell>
                 <TableCell className="text-sm py-2">{aircraft.operator}</TableCell>
                 <TableCell className="py-2">
                   <EditableSelectCell
@@ -139,8 +138,6 @@ export const AircraftTable = ({ aircraft, onUpdate }: AircraftTableProps) => {
                     onSave={(newValue) => handleUpdate(aircraft.id, 'flightPositioning', newValue)}
                   />
                 </TableCell>
-                <TableCell className="text-sm py-2">{formatCapacity(aircraft.capacityUsed, aircraft.blockHours)}</TableCell>
-                <TableCell className="text-center py-2">{aircraft.capacityAvailable}</TableCell>
                 <TableCell className="py-2">
                   <EditableSelectCell
                     value={aircraft.status}

@@ -73,11 +73,9 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
             <TableHead className="border-r">STD</TableHead>
             <TableHead className="border-r">ADEP</TableHead>
             <TableHead className="border-r">STA</TableHead>
+            <TableHead className="border-r">ADES</TableHead>
             <TableHead className="border-r">Operator</TableHead>
             <TableHead className="border-r">Flight Type</TableHead>
-            <TableHead className="border-r">Total Cap.</TableHead>
-            <TableHead className="border-r">Cap. Used</TableHead>
-            <TableHead className="border-r">Cap. Avail.</TableHead>
             <TableHead className="border-r">Status</TableHead>
             <TableHead className="border-r">Client</TableHead>
             <TableHead className="border-r">Contract ID</TableHead>
@@ -115,6 +113,7 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
               <TableCell className="border-r">{flight.std}</TableCell>
               <TableCell className="border-r">{flight.adep}</TableCell>
               <TableCell className="border-r">{flight.sta}</TableCell>
+              <TableCell className="border-r">{flight.ades}</TableCell>
               <TableCell className="border-r">{flight.operator}</TableCell>
               <TableCell className="border-r">
                 <EditableSelectCell
@@ -123,8 +122,6 @@ export const ExcelView = ({ aircraft, onUpdate }: ExcelViewProps) => {
                   onSave={(value) => handleUpdate(flight.id, 'flightType', value)}
                 />
               </TableCell>
-              <TableCell className="border-r">{flight.capacityUsed}</TableCell>
-              <TableCell className="border-r">{flight.capacityAvailable}</TableCell>
               <TableCell className="border-r">
                 <EditableSelectCell
                   value={flight.status}
