@@ -38,7 +38,6 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
   
   // Calculate total block hours (excluding cancelled and AOG)
   const totalBlockMinutes = aircraft.reduce((sum, a) => {
-    if (a.status === 'cancelled' || a.status === 'aog') return sum;
     return sum + calculateBlockMinutes(a.std, a.sta);
   }, 0);
   
