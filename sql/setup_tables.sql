@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.aircraft_data (
     adep VARCHAR(4) NOT NULL,
     sta TIME NOT NULL,
     operator VARCHAR(100) NOT NULL,
-    flight_type VARCHAR(20) CHECK (flight_type IN ('charter', 'schedule', 'acmi','maintenance')) NOT NULL,
+    flight_type VARCHAR(20) CHECK (flight_type IN ('charter', 'schedule', 'acmi','maintenance','adhoc')) NOT NULL,
     total_capacity INTEGER NOT NULL,
     capacity_used INTEGER NOT NULL,
     capacity_available INTEGER NOT NULL,

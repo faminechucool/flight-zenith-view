@@ -36,7 +36,7 @@ const flightSchema = z.object({
   ades: z.string().trim().min(3, "ADES must be 3-4 characters").max(4, "ADES must be 3-4 characters"),
   sta: z.string().trim().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Invalid time format (HH:MM)"),
   operator: z.string().trim().min(1, "Operator is required").max(50, "Max 50 characters"),
-  flightType: z.enum(["charter", "schedule", "acmi", "maintenance"], { required_error: "Flight type is required" }),
+  flightType: z.enum(["charter", "schedule", "acmi", "maintenance","adhoc"], { required_error: "Flight type is required" }),
   capacityUsed: z.number().min(0, "Must be at least 0").max(1000, "Max 1000"),
   status: z.enum(["operational", "aog", "maintenance", "cancelled"], { required_error: "Status is required" }),
   clientName: z.string().trim().min(1, "Client name is required").max(100, "Max 100 characters"),
@@ -268,7 +268,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
         ades: flight.ades,
         sta: flight.sta,
         operator: flight.operator,
-        flight_type: flight.flightType as 'charter' | 'schedule' | 'acmi' | 'maintenance',
+        flight_type: flight.flightType as 'charter' | 'schedule' | 'acmi' | 'maintenance' | 'adhoc',
         total_capacity: flight.totalCapacity,
         capacity_used: flight.capacityUsed,
         capacity_available: flight.capacityAvailable,
@@ -593,6 +593,7 @@ export function CreateFlightForm({ onFlightCreated }: CreateFlightFormProps) {
                           <SelectItem value="charter">Charter</SelectItem>
                           <SelectItem value="acmi">ACMI</SelectItem>
                           <SelectItem value="maintenance">Maintenance</SelectItem>
+                          <SelectItem value="adhoc">Adhoc</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

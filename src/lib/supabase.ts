@@ -30,7 +30,7 @@ export type Database = {
           ades:string
           sta: string
           operator: string
-          flight_type: 'charter' | 'schedule' | 'acmi'
+          flight_type: 'charter' | 'schedule' | 'acmi'|'maintenance'|'adhoc'
           total_capacity: number
           capacity_used: number
           capacity_available: number

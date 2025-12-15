@@ -11,6 +11,8 @@ export interface Aircraft {
     charter: number;
     schedule: number;
     acmi: number;
+    maintenance: number;
+    adhoc: number;
   };
   utilization: number;
   location: string;
@@ -77,6 +79,14 @@ export function AircraftCard({ aircraft }: AircraftCardProps) {
           <div className="p-2 rounded bg-flightType-acmi/10">
             <div className="text-lg font-bold text-flightType-acmi">{aircraft.flights.acmi}</div>
             <div className="text-xs text-muted-foreground">ACMI</div>
+          </div>
+          <div className="p-2 rounded bg-flightType-maintenance/10">
+            <div className="text-lg font-bold text-flightType-maintenance">{aircraft.flights.maintenance}</div>
+            <div className="text-xs text-muted-foreground">Maintenance</div>
+          </div>
+          <div className="p-2 rounded bg-flightType-adhoc/10">
+            <div className="text-lg font-bold text-flightType-adhoc">{aircraft.flights.adhoc}</div>
+            <div className="text-xs text-muted-foreground">Adhoc</div>
           </div>
         </div>
 
