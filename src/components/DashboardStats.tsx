@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Plane, CheckCircle, AlertTriangle, Clock, Wrench } from "lucide-react";
+import { Plane, CheckCircle, AlertTriangle, Clock, Wrench, XCircle, Package } from "lucide-react";
 import { AircraftTableData } from "@/data/mockData";
 
 interface DashboardStatsProps {
@@ -49,6 +49,13 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
     return sum;
   }, 0);
 
+  // Total Cancelled
+  const totalCancelled = aircraft.filter(a => a.status === "cancelled").length;
+
+  // Total Spare Capacity (ferry/live/empty/spare)
+  const sparePositionings = ["ferry_flight", "spare_flight", "spare flight", "live_flight", "empty"];
+  const totalSpareCapacity = aircraft.filter(a => sparePositionings.includes(a.flightPositioning)).length;
+
   const stats = [
     {
       title: "Total Flights",
@@ -84,11 +91,25 @@ export function DashboardStats({ aircraft }: DashboardStatsProps) {
       icon: Wrench,
       description: "maintenance hours",
       color: "text-aviation-accent"
+    },
+    {
+      title: "Total Cancelled",
+      value: totalCancelled,
+      icon: XCircle,
+      description: "Flights cancelled",
+      color: "text-rose-600"
+    },
+    {
+      title: "Total Spare Capacity",
+      value: totalSpareCapacity,
+      icon: Package,
+      description: "Ferry/Live/Empty/Spare",
+      color: "text-blue-600"
     }
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 xl:grid-cols-7">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
