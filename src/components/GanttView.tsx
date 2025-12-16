@@ -489,6 +489,19 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
     };
   };
 
+  const [editFlightNo, setEditFlightNo] = useState("");
+  const [editStd, setEditStd] = useState("");
+  const [editSta, setEditSta] = useState("");
+
+  // When opening the dialog, initialize the edit fields
+  useEffect(() => {
+    if (selectedFlight) {
+      setEditFlightNo(selectedFlight.flightNo);
+      setEditStd(selectedFlight.std);
+      setEditSta(selectedFlight.sta);
+    }
+  }, [selectedFlight]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4 bg-muted/10 rounded-md">
@@ -802,15 +815,29 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground">Flight No:</span>
-                  <p className="mt-1">{selectedFlight.flightNo}</p>
+                  <Input
+                    className="mt-1"
+                    value={editFlightNo}
+                    onChange={e => setEditFlightNo(e.target.value)}
+                  />
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground">STD:</span>
-                  <p className="mt-1">{selectedFlight.std}</p>
+                  <Input
+                    className="mt-1"
+                    value={editStd}
+                    onChange={e => setEditStd(e.target.value)}
+                    placeholder="HH:MM"
+                  />
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground">STA:</span>
-                  <p className="mt-1">{selectedFlight.sta}</p>
+                  <Input
+                    className="mt-1"
+                    value={editSta}
+                    onChange={e => setEditSta(e.target.value)}
+                    placeholder="HH:MM"
+                  />
                 </div>
                 <div>
                   <span className="font-semibold text-muted-foreground">Duration:</span>
@@ -845,15 +872,6 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                   <p className="mt-1">{selectedFlight.clientName}</p>
                 </div>
               </div>
-
-              <Button 
-                onClick={() => openTimePicker(selectedFlight)}
-                className="w-full mt-4"
-                variant="outline"
-              >
-                <Clock className="w-4 h-4 mr-2" />
-                Edit Times
-              </Button>
 
               {/* Approve and Decline Buttons */}
               <div className="flex gap-2 pt-4">
@@ -941,6 +959,28 @@ export const GanttView = ({ aircraft, activeRegistrations, onUpdateFlightTimes, 
                   </Button>
                 </div>
               )}
+
+              {/* Save Changes button */}
+              <Button
+                className="w-full mt-2"
+                onClick={async () => {
+                  try {
+                    await onUpdateAircraft(selectedFlight.id, 'flightNo', editFlightNo, 'User');
+                    await onUpdateFlightTimes(selectedFlight.id, editStd, editSta, 'User');
+                    setSelectedFlight({
+                      ...selectedFlight,
+                      flightNo: editFlightNo,
+                      std: editStd,
+                      sta: editSta,
+                    });
+                    toast.success('Flight details updated');
+                  } catch (err) {
+                    toast.error('Failed to update flight details');
+                  }
+                }}
+              >
+                Save Changes
+              </Button>
             </div>
           )}
         </DialogContent>
